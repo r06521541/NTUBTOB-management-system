@@ -111,6 +111,7 @@ void main() {
           connectivity: context.connectivity,
           apple: ports,
           line: ports,
+          google: context.google,
           ids: owner_fixture.FixedIds(),
         );
         owners.add(owner);
@@ -198,6 +199,7 @@ void main() {
       expect(identical(contexts.single.session.api, contexts.single.transport),
           isTrue);
       expect(contexts.single.session.terminalPurge, isNotNull);
+      expect(contexts.single.google, isNull);
       expect(ports.nonces, isEmpty);
       expect(requests, isEmpty);
       await action(tester, 'request');
@@ -208,6 +210,89 @@ void main() {
       expect(ports.logoutCalls, 0);
     });
   }
+
+  for (final useFactory in [false, true]) {
+    rootTestWidgets(
+        'explicit Google reaches captured owner, factory=$useFactory',
+        (tester) async {
+      final google = provider_fixture.GoogleProofPort(ports);
+      options = AccountErasureEntryOptions(
+        isOnline: () => online.value,
+        connectivity: online,
+        google: google,
+        ownerFactory: useFactory ? options.ownerFactory : null,
+      );
+      await tester.pumpWidget(root());
+      await tester.pumpAndSettle();
+      expect(contexts, isEmpty);
+      expect(ports.nonces, isEmpty);
+      expect(requests, isEmpty);
+      expect(store.values.containsKey('erasure-owner:v1'), isFalse);
+      await entry(tester);
+      final captured = tester
+          .widget<AccountErasureEntryPage>(find.byType(AccountErasureEntryPage))
+          .rootContext;
+      expect(identical(captured.google, google), isTrue);
+      expect(identical(captured.store, store), isTrue);
+      expect(identical(captured.session.store, store), isTrue);
+      expect(identical(captured.session.api, captured.transport), isTrue);
+      await open(tester, 'google');
+      expect(find.byType(AccountErasureFlowPage), findsOneWidget);
+      expect(contexts.length, useFactory ? 1 : 0);
+      if (useFactory) {
+        expect(identical(contexts.single, captured), isTrue);
+      }
+      expect(ports.nonces, isEmpty);
+      expect(requests, isEmpty);
+      await action(tester, 'request');
+      expect(ports.nonces, [fixture.nonce]);
+      expect(erasureTransport.provider, 'google');
+      expect(requests.where((r) => r.url.path.contains('/auth/')), isEmpty);
+      expect(ports.logoutCalls, 0);
+      expect(ports.envelopeCalls, 0);
+      expect(find.textContaining(fixture.secret), findsNothing);
+    });
+  }
+
+  rootTestWidgets(
+      'replacing fresh Google options cannot rebind old confirmation',
+      (tester) async {
+    final original = provider_fixture.GoogleProofPort(ports);
+    options = AccountErasureEntryOptions(
+      isOnline: () => online.value,
+      connectivity: online,
+      google: original,
+      ownerFactory: options.ownerFactory,
+    );
+    await tester.pumpWidget(root());
+    await tester.pumpAndSettle();
+    await entry(tester);
+    final captured = tester
+        .widget<AccountErasureEntryPage>(find.byType(AccountErasureEntryPage))
+        .rootContext;
+    await tester.tap(find.byKey(const ValueKey('erasure-entry-google')));
+    await tester.pumpAndSettle();
+    final replacementPorts = provider_fixture.ProofPorts();
+    options = AccountErasureEntryOptions(
+      isOnline: () => online.value,
+      connectivity: online,
+      google: provider_fixture.GoogleProofPort(replacementPorts),
+      ownerFactory: options.ownerFactory,
+    );
+    await tester.pumpWidget(root());
+    await tester.pumpAndSettle();
+    expect(identical(captured.google, original), isTrue);
+    expect(captured.requireCurrent, throwsException);
+    await tester
+        .tap(find.byKey(const ValueKey('confirm-erasure-entry-google')));
+    await tester.pumpAndSettle();
+    expect(contexts, isEmpty);
+    expect(find.byType(AccountErasureFlowPage), findsNothing);
+    expect(store.values.containsKey('erasure-owner:v1'), isFalse);
+    expect(ports.nonces, isEmpty);
+    expect(replacementPorts.nonces, isEmpty);
+    expect(requests, isEmpty);
+  });
 
   rootTestWidgets(
       'actual root purge clears session, caches and projection; receipt survives',
@@ -359,15 +444,26 @@ void main() {
     expect(erasureTransport.paths.length, before);
   });
 
-  rootTestWidgets('offline explicit entry does not invoke provider or HTTP',
-      (tester) async {
-    online.value = false;
-    await tester.pumpWidget(root());
-    await tester.pumpAndSettle();
-    await entry(tester);
-    await open(tester, 'apple');
-    expect(ports.nonces, isEmpty);
-    expect(requests, isEmpty);
-    expect(find.byType(AccountErasureFlowPage), findsOneWidget);
-  });
+  for (final provider in ['apple', 'google']) {
+    rootTestWidgets(
+        'offline explicit $provider entry does not invoke provider or HTTP',
+        (tester) async {
+      online.value = false;
+      if (provider == 'google') {
+        options = AccountErasureEntryOptions(
+          isOnline: () => online.value,
+          connectivity: online,
+          google: provider_fixture.GoogleProofPort(ports),
+          ownerFactory: options.ownerFactory,
+        );
+      }
+      await tester.pumpWidget(root());
+      await tester.pumpAndSettle();
+      await entry(tester);
+      await open(tester, provider);
+      expect(ports.nonces, isEmpty);
+      expect(requests, isEmpty);
+      expect(find.byType(AccountErasureFlowPage), findsOneWidget);
+    });
+  }
 }

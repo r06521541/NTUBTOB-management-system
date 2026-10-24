@@ -867,6 +867,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     }
     final epoch = _erasureEpoch;
     final apple = _apple;
+    final google = options.google;
     return (_) {
       // Called once by the support tile at tap time, not by a route rebuild.
       final generation = session.generation;
@@ -876,6 +877,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         transport: transport,
         line: line,
         apple: apple,
+        google: google,
         options: options,
         requireCurrent: () {
           if (!mounted ||

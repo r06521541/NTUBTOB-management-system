@@ -14,12 +14,12 @@ remains isolated; Officer/Admin receive only explicitly projected bounded reads.
 The canonical machine-readable contract is `openapi.json`.
 
 The runtime core accepts only the explicit revisions in `revision_readiness.py`:
-`0008` through `0014`, plus `0019` and candidate `0020`, using their full migration identifiers.
+`0008` through `0014`, plus `0019` through candidate `0023`, using their full migration identifiers.
 Unlisted intermediate revisions are not implied to be compatible. This permits deploying
 the compatible runtime before the Apple lifecycle migration; unknown, malformed,
 and unlisted future revisions fail closed. Apple exchange and notifications use
 the independent allowlist in `MobileRepository.apple_lifecycle_ready` (currently
-`0010`, `0011`, `0012`, `0013`), not an exact-0010-only gate. Both require exactly
+`0010` through `0014`, plus `0019` through candidate `0023`), not an exact-0010-only gate. Both require exactly
 one known revision; an empty or multi-head version table fails closed. The
 additive `0013_account_deletion_requests` receipt table preserves `0012`
 authority checks, Apple admin-recovery handling and event notification fields;

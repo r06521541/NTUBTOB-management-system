@@ -2,6 +2,42 @@
 
 ## Activation-readiness candidate — 2026-10-24 (not enabled)
 
+Latest uncommitted continuation: additive0023 private verified-retention completion
+and terminal180 minimal-evidence cleanup. Exact row permits, full stored postimage
+checks, bidirectional FK inventory, global unlinked irreversible flag; preserve
+authority operation/epoch/operator/time while removing only target linkage.
+No per-target purge tombstone; missing root remains unverifiable, not success or
+retry permission. Cancelled never-dispatched captured plans use the stronger
+terminal180+verified-backup gate. No grants, shared-key destruction or activation.
+Independent review initially REQUEST_CHANGES on four write-verification/catalogue
+defects; actual RED7 failures plus one FK fixture error preserved. Corrected
+13PG PASS4.918s. Main added real last-admin suspension/minimization regression;
+fixture order/timestamp errors corrected without weakening production guards.
+Latest focused15PG PASS5.799s includes14 cleanup tests and current metadata check,
+which reports no pending operations. Metadata4offline PASS. Independent source
+ACCEPT received (reviewer56offline PASS,38AST/diffPASS); Main shared242PASS,
+quality38PASS, readiness/harness75runOK skipped13. Exact23 Python
+compatibility retains historical22, unknown/multihead rejection and native guarded
+fixture downgrade. Whole candidate still awaits full/latest hosted CI.
+
+Google entry now propagates only explicit fresh port through captured actual root
+context; ordinary login is not fallback. Default entry/main remain unchanged.
+Four owned Dart files formatted in isolated cached official Dart3.13.0 container;
+Windows Application Control was not bypassed. Local Flutter remains unverified.
+
+Exact6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7 hosted run40062727377 completed
+SUCCESS/all16 jobs (including PG15/16, Flutter, unsigned iOS and fictional signing).
+Exact6e77 local freshPG16 full1178 run OK skipped2 (1176 passed),532.707s. These
+prove that immutable snapshot, not this dirty0023 continuation. New fullPG16 is
+running on fresh loopback55437; results must be recorded before claiming green.
+
+Runtime audit confirms Docker bootstrap does not inject AccountErasureService and
+main.dart does not enable entry. Apple has encrypted revocable credentials;
+Google/LINE fresh identity assertions alone are not revocable token custody.
+Internal review/operator composition, real custody/IAM/backup proof and bounded
+staging migration/deploy/Owner device acceptance remain. No secret payloads read,
+no cloud/provider/production/schema mutation, no runtime enablement/new fees.
+
 Continuation adds reviewed exact-version GCS purge port (not durable coordinator
 or all-copy absence), pure30/150/180 eligibility, additive0022 private backup
 observations/global day150 new-effect fence and operator-only online+30 exact

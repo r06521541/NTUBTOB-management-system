@@ -131,6 +131,7 @@ class RestrictedErasureRequestRepository(AccountErasureRequestRepository):
                     ("0020_erasure_intake",),
                     ("0021_erasure_continuity",),
                     ("0022_erasure_retention",),
+                    ("0023_erasure_minimal_retention",),
                 ):
                     raise ErasureRequestUnavailable("schema_not_ready")
                 for table in (

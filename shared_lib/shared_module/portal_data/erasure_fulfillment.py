@@ -160,6 +160,7 @@ def _connection(session):
         ("0020_erasure_intake",),
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
     ):
         raise _Rejected("schema_not_ready")
     for table in (
@@ -267,6 +268,7 @@ def _inventory(connection, identity_id):
         ("0020_erasure_intake",),
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
     }:
         expected.add(
             (
@@ -619,6 +621,7 @@ class PendingIdentityFulfillment:
                         ("0020_erasure_intake",),
                         ("0021_erasure_continuity",),
                         ("0022_erasure_retention",),
+                        ("0023_erasure_minimal_retention",),
                     ):
                         raise _Rejected("schema_not_ready")
                     self._context_on(connection, job_id, snapshot)

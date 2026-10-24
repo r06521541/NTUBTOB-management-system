@@ -116,6 +116,7 @@ def load_erasure_verification_context(
             ("0020_erasure_intake",),
             ("0021_erasure_continuity",),
             ("0022_erasure_retention",),
+            ("0023_erasure_minimal_retention",),
         ):
             raise ErasureContextUnavailable("schema_not_ready")
         for table in ("account_erasure_jobs", "auth_identities", "people"):

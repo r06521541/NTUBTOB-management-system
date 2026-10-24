@@ -74,6 +74,7 @@ def require_management_mutation(session):
             ("0020_erasure_intake",),
             ("0021_erasure_continuity",),
             ("0022_erasure_retention",),
+            ("0023_erasure_minimal_retention",),
         ):
             require_management_writes_available(connection)
         elif len(revisions) != 1 or revisions[0] not in LEGACY_REVISIONS:

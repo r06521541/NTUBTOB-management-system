@@ -2,7 +2,11 @@
 
 import unittest
 
-from shared_module.portal_data import erasure_models, erasure_recovery_models
+from shared_module.portal_data import (
+    erasure_minimal_retention_models,
+    erasure_models,
+    erasure_recovery_models,
+)
 from shared_module.portal_data.models import PortalAuthorityStateRecord, PortalDataBase
 from sqlalchemy import inspect, select
 
@@ -10,8 +14,17 @@ from sqlalchemy import inspect, select
 class RecoveryMetadataTests(unittest.TestCase):
     def test_private_operation_is_core_only_and_has_no_person_binding(self):
         table = erasure_recovery_models.account_erasure_admin_recovery_operations
-        self.assertEqual(len(table.c), 8)
-        self.assertFalse(any(column.nullable for column in table.c))
+        self.assertEqual(len(table.c), 9)
+        self.assertEqual(
+            {column.name for column in table.c if column.nullable},
+            {"job_id", "expected_generation", "scope_hash", "minimized_at"},
+        )
+        constraint = next(
+            c for c in table.constraints if c.name == "ck_erasure_recovery_minimized"
+        )
+        self.assertIn("job_id IS NOT NULL", str(constraint.sqltext))
+        self.assertIn("job_id IS NULL", str(constraint.sqltext))
+        self.assertIn("minimized_at>=applied_at", str(constraint.sqltext))
         self.assertEqual(
             {fk.target_fullname for fk in table.foreign_keys},
             {"ntubtob.account_erasure_jobs.id"},
@@ -20,6 +33,31 @@ class RecoveryMetadataTests(unittest.TestCase):
             any(m.local_table is table for m in PortalDataBase.registry.mappers)
         )
         self.assertEqual(next(iter(table.foreign_keys)).ondelete, "RESTRICT")
+
+    def test_cleanup_control_metadata_has_no_per_target_tombstone(self):
+        state = erasure_minimal_retention_models.erasure_retention_state
+        self.assertEqual(set(state.c.keys()), {"singleton_id", "cleanup_performed"})
+        permits = erasure_minimal_retention_models.erasure_evidence_delete_permits
+        self.assertEqual(
+            set(permits.c.keys()),
+            {
+                "backend",
+                "transaction_id",
+                "table_oid",
+                "row_key",
+                "operation",
+                "old_hash",
+                "new_hash",
+            },
+        )
+        for table in (state, permits):
+            self.assertFalse(table.foreign_keys)
+            self.assertFalse(
+                any(
+                    mapper.local_table is table
+                    for mapper in PortalDataBase.registry.mappers
+                )
+            )
 
     def test_pointer_is_nullable_core_only_not_added_to_orm_select(self):
         name = "management_suspension_operation_id"

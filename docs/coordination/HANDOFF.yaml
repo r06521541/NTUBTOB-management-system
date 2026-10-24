@@ -14,11 +14,18 @@ note: >
   exact base8d1f7d46997701021fa3152ba8d143f8ff885ffb. Pending/Google writers frozen
   and released; bounded source reviews accepted. Retention/GCS/fixture delegates
   completed/frozen and released; Main owns integration. Unique DraftPR271 current
-  remote96da843b9f1bdf1452c64dc44f8896d78638f911 run40061434140 failed quick/lint/PG
-  fixture cleanup; iOS native jobs passed. Local corrections plus additive0022
+  remote6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7 run40062727377 SUCCESS all16;
+  old96da run40061434140 failed quick/lint/PG fixture, not green. Current local
+  full PG fresh55436 finished1178 OK skipped2. New0023 full fresh55437 session25204
+  running; do not mutate its source snapshot. Focused15PG PASS/currentmetadata
+  no pending operations; shared242PASS, quality38PASS. Independent0023 source
+  ACCEPT received/released; all delegates frozen/released, no active roles.
+  Local corrections plus additive0022
   global150day fence and online+30 exact-plan purge source reviewed;35 focused
   retention/PG/metadata PASS. Minimal180 cleanup/operator/runtime/staging not ready.
-  No production enablement. Do not merge partial candidate as complete.
+  Minimal180 source now implements exact terminal cleanup and verified completion,
+  preserving last-admin suspension while minimizing target linkage; source-only, no runtime
+  grant/live cleanup assumed. No production enablement; do not merge as complete.
   Zero incremental fees and WIRE-01 staging boundaries remain, no final production
   activation or real team account deletion. Source-only completion below is history,
   not readiness acceptance. Preserve existing local closeout/recovery/privacy drafts.

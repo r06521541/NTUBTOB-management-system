@@ -110,6 +110,7 @@ def load_erasure_receipt(
             ("0020_erasure_intake",),
             ("0021_erasure_continuity",),
             ("0022_erasure_retention",),
+            ("0023_erasure_minimal_retention",),
         ):
             raise ErasureReceiptUnavailable("schema_not_ready")
         if (
@@ -164,6 +165,7 @@ def load_erasure_receipt(
                 ("0020_erasure_intake",),
                 ("0021_erasure_continuity",),
                 ("0022_erasure_retention",),
+                ("0023_erasure_minimal_retention",),
             )
             else set()
         )

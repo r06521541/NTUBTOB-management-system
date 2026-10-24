@@ -75,7 +75,7 @@ class PostgresConstraintTests(unittest.TestCase):
     def _assert_current_metadata(self, connection):
         config = Config("alembic.ini")
         config.attributes["connection"] = connection
-        command.upgrade(config, "0022_erasure_retention")
+        command.upgrade(config, "0023_erasure_minimal_retention")
         inspector = inspect(connection)
         for table in PortalDataBase.metadata.tables.values():
             if table.name == "members":

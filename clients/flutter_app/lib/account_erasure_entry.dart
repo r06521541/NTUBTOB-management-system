@@ -12,11 +12,14 @@ class AccountErasureEntryOptions {
   const AccountErasureEntryOptions({
     required this.isOnline,
     required this.connectivity,
+    this.google,
     this.ownerFactory,
   });
 
   final bool Function() isOnline;
   final Listenable connectivity;
+  // A fresh nonce-bound port is explicit; ordinary Google login is not a fallback.
+  final GoogleFreshAuthorizationPort? google;
   final AccountErasureOwner Function(AccountErasureRootContext)? ownerFactory;
 }
 
@@ -30,6 +33,7 @@ class AccountErasureRootContext {
     required this.transport,
     required this.line,
     required this.apple,
+    this.google,
     required this.options,
     required this.requireCurrent,
   });
@@ -39,6 +43,7 @@ class AccountErasureRootContext {
   final ApiTransport transport;
   final LineLoginPort line;
   final AppleLoginPort? apple;
+  final GoogleFreshAuthorizationPort? google;
   final AccountErasureEntryOptions options;
   final VoidCallback requireCurrent;
   bool Function() get isOnline => options.isOnline;
@@ -54,6 +59,7 @@ class AccountErasureRootContext {
       connectivity: connectivity,
       apple: apple,
       line: line,
+      google: google,
     );
   }
 }
@@ -145,6 +151,12 @@ class _AccountErasureEntryPageState extends State<AccountErasureEntryPage> {
                 key: const ValueKey('erasure-entry-apple'),
                 onPressed: _busy ? null : () => _open('apple'),
                 child: const Text('使用 Apple 驗證'),
+              ),
+            if (widget.rootContext.google != null)
+              FilledButton(
+                key: const ValueKey('erasure-entry-google'),
+                onPressed: _busy ? null : () => _open('google'),
+                child: const Text('使用 Google 驗證'),
               ),
             FilledButton(
               key: const ValueKey('erasure-entry-line'),

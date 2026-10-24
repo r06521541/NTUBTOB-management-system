@@ -307,6 +307,7 @@ def _lock(connection):
         ("0020_erasure_intake",),
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
     ):
         raise _Rejected("schema_not_ready")
     connection.execute(
@@ -352,6 +353,7 @@ def _lock(connection):
         ("0020_erasure_intake",),
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
     }
     for table in PortalDataBase.metadata.tables.values():
         if table.name == "account_erasure_intakes" and not intake_schema:

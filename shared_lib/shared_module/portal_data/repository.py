@@ -88,6 +88,7 @@ EVENT_LIFECYCLE_REVISIONS = frozenset(
         "0020_erasure_intake",
         "0021_erasure_continuity",
         "0022_erasure_retention",
+        "0023_erasure_minimal_retention",
     }
 )
 MAX_EVENT_NOTIFICATION_RECIPIENTS = 500

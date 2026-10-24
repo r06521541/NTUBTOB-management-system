@@ -66,6 +66,7 @@ class RevisionReadinessTest(unittest.TestCase):
                 "0020_erasure_intake",
                 "0021_erasure_continuity",
                 "0022_erasure_retention",
+                "0023_erasure_minimal_retention",
             ),
         )
 
@@ -83,7 +84,15 @@ class RevisionReadinessTest(unittest.TestCase):
     def test_empty_unknown_and_malformed_revisions_fail_closed_without_value_in_log(
         self,
     ):
-        for observed in ("", "0010_future_revision", None, 6, ["secret-value"]):
+        for observed in (
+            "",
+            "0010_future_revision",
+            "0023_unreviewed_variant",
+            "0024_future_revision",
+            None,
+            6,
+            ["secret-value"],
+        ):
             with self.subTest(observed_type=type(observed).__name__):
                 engine, logger = Mock(), Mock()
                 connection = Mock()

@@ -2,6 +2,136 @@
 
 ## Activation readiness continuation — 2026-10-24
 
+Current assignments: Main=/root on codex/account-erasure-activation-readiness,
+base/head6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7. Minimal-retention-source
+lease1 REQUEST_CHANGES received/handled/released. /root/erasure_scope_review now
+writer task203-minimal-retention-fix lease2, owns only0023 migration and
+test_erasure_evidence_cleanup.py: exact postimages/rowcounts and bidirectional FK
+catalogue plus regressions; Main independently accepts. /root/account_backend
+writer task203-schema23-compat lease1 owns existing exact22 Python compatibility
+readers/executors, Mobile revision readiness/tests, migration readiness/operator
+head assertions and current-head PG harness assertions; append23, preserve
+historical22 fixtures. No overlap with0023/minimal metadata/cleanup tests.
+Both packets require immediate ACK,10–15min heartbeat, immediate blockers and
+proactive dirty paths/tests/findings/limits/external-mutation completion to Main,
+then freeze. No DB/cloud/network/Secret/Git mutation or costs delegated.
+Exact6e77 hosted run40062727377 completed SUCCESS all16 jobs; local1178 OK
+skipped2 remains that snapshot only, not uncommitted0023 acceptance.
+
+Advisor /root/erasure_app_adapter claim task203-runtime-closure lease1 uses same
+branch/base/head and mandatory packet, read-only owned none, report_to=/root;
+bounded scope actual Mobile bootstrap/provider custody/main.dart entry and existing
+staging operator gaps only. No external operations/fees; completion then freeze.
+Main independently reviewed Google entry four-path delta: explicit fresh Google
+port only, captured options/currentness and offline paths preserved; default entry
+and ordinary login unchanged. Official cached Dart3.13.0 formatter ran offline on
+only four owned files (two test files formatted). No local Flutter runtime proof:
+Windows Application Control remains unchanged; next exact hosted gate required.
+
+Minimal-retention-fix lease2 completion received, Main formatted/reviewed and actual
+13PG PASS4.918s; FK RED was pending-trigger fixture error, not a product RED.
+Main added real suspension+minimization test (initial fixture ordering/time errors
+corrected, no invariant relaxed). Full focused14 cleanup plus current-head metadata
+=15PG PASS5.799s; Alembic reports no new operations. Recovery metadata4offlinePASS.
+Compat writer completion received/frozen/released; 31paths Main-owned;108offline
+run70PASS38PGskip,23affectedPASS. Reported metadata8/9column failure corrected by
+Main to exactnullable/checkconstraint contract, not ignored. Runtime advisor
+completion received/released: actual bootstrap and main entry remain unwired;
+Google/LINE revocable custody absent; no actual activation acceptance.
+Independent advisor /root/privacy_foundation task203-minimal23-independent-review
+lease1, same branch/base/head, ownednone/read-only/report_to=/root, scope0023,
+metadata/tests/exact23/harness only; no self-acceptance of its Google writer delta.
+Mandatory ACK/heartbeat/blocker/proactive verdict then freeze; no DB/network/
+cloud/Secret/Git/file mutation/fees. Main remains responsible for integration.
+
+Independent0023 source ACCEPT received/handled/released: reviewer56offlinePASS,
+38AST/diffPASS and LF manifest3cfec2491ea870e0c3c1daf301cc843ef80a97ae1158a499455e19f7c50af725.
+No active delegated role remains. Main shared242PASS, quality38PASS, readiness/
+harness75runOK skipped13. Fresh55437 full PG is running on frozen candidate;
+samePR271 remains Draft, next exact hosted CI required. No live readiness inferred.
+
+Next private minimal-ledger cleanup design packet (not implementation authority
+for a different policy): actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-minimal-retention-design; lease_version=1; owned_paths=none;
+branch=codex/account-erasure-activation-readiness;
+base=head=6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7; report_to=/root;
+read-only scope=small fixed SQL180 cleanup for fully terminal/effect-resolved,
+effective-expired, actual-backup-horizon-passed/suppression-verified requests;
+exact allowlisted delete permits, no cascade/trigger disabling/general tables;
+avoid a new permanent per-target tombstone. Evaluate0019 pointer-preserving
+minimization of only job/gen/scope while keeping operation/epoch/suspension and
+all management guards, versus defer with explicit exception if not safely within
+approved deidentification. No DB/network/Secret/Git/file mutation/fees. ACK,
+heartbeat10–15min, blocker immediate, proactively send concrete minimal design,
+tests/limits/findings to /root and freeze. Main awaits exact6e77 full/hosted CI;
+no overlapping source mutation to that test snapshot.
+
+Minimal-retention design received/handled/released; no active delegates. Fixed0023
+may minimize only0019 job/gen/scope+timestamp while retaining operation/epochs/
+operator/time and exact management suspension. Ordinary insert/update must never
+mint a minimized approval. Exact old approval reader fails closed after linkage
+removal. Root/receipt/effective chain, latest fixed backup op, all item+legacy-step
+outcomes, sealed-plan absence and restoration quiescence are prerequisites; no
+per-job permanent tombstone and no restore/key destruction in SQL cleanup.
+Main also confirmed no current runtime sets completed after online_completed;
+0023 needs an explicit private verified-retention completion operation before
+terminal180 cleanup, not a silent status shortcut. No new Owner policy implied.
+Existing6e77 full tests must finish before changing their migration snapshot.
+
+Exact6e77 local full PG completed1178 tests OK skipped2 (1176 passed),532.707s;
+new isolated loopback55436 with all four URLs, legacy bootstrap+upgradehead22.
+Previous96da1150 result remains historical. Shared rebuilt/installed6e77;
+postinstallWeb267/Mobile113/LINE26/notify11/broadcast28 PASS, shared erasure241
+PASS, quick43 OK skipped1, compile/quality/diff PASS. Sdist filename scan confirms
+retention module and no private input file names; no deploy dist copy.
+
+Main0023 execution checkpoint:
+1. Deliver explicit verified-backup completion and terminal180 minimal cleanup,
+   never a runtime/fee/backup-absence claim or implicit retention extension.
+2. Core new0023, private permits/minimized0019 metadata, exact23 compatibility,
+   rollback-only PG fixtures and fixed diagnostics; keep0014–22 immutable.
+3. Preserve management suspension/epoch/opactor, originals and unfinished evidence;
+   no per-job tombstone, shared-key deletion, CASCADE or general table capability.
+4. RED first; exact old/new boundary/ACL/rollback/unknown/lastadmin tests and review;
+   then fresh full/hosted. Current6e77 snapshot finished before schema edits.
+5. External inventory/restore quiescence is separate actual preflight; no Owner
+   intervention needed for this approved deidentification source implementation.
+
+Advisor packet: actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-minimal-retention-source; lease_version=1; owned_paths=none;
+branch=codex/account-erasure-activation-readiness;
+base=head=6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7; report_to=/root;
+read-only scope=uncommitted0023 migration/minimal-cleanup tests plus subsequent
+metadata/exact23 compatibility only. Initial8 actual rollbackPG PASS after RED
+missingrevision. Inspect fixed permits/childorder/catalogue/lastadmin minimization,
+global non-target irreversible flag, no target tombstone or false absence success.
+Cancelled captured plans need exact180+all-backup-verified no-effects path because
+0022 online+30 cannot apply to never-online cancellation; this is explicit same
+plan permit, never a weaker second path for completed requests. No live/worker/
+inventory acceptance. No edits/DB/network/Secret/Git/fees; ACK/heartbeat10–15m,
+immediate blockers and proactive findings/verdict/tests/limits to /root then freeze.
+
+Google-root writer completed/frozen packet received; claim released, four paths
+now Main-owned for independent review/format/hosted proof. No Dart execution claim.
+
+Writer packet: actor_id=/root/privacy_foundation; role=codex-writer;
+claim_id=task203-google-root-port; lease_version=1; task=TASK-203;
+branch=codex/account-erasure-activation-readiness;
+base=head=6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7; report_to=/root;
+owned_paths=clients/flutter_app/lib/account_erasure_entry.dart,
+clients/flutter_app/lib/basic_app.dart,clients/flutter_app/test/account_erasure_entry_test.dart,
+clients/flutter_app/test/account_erasure_root_test.dart (confirm exact existing
+test names first; if absent report before expanding paths).
+Scope=carry explicit optional GoogleFreshAuthorizationPort from trusted erasure
+entry options through captured actual root context into existing owner; never
+ordinary GoogleLoginPort fallback, global nonce or new login/session. Default
+entry null and main release untouched. Preserve currentness/epoch/offline and
+ownerFactory controls, no I/O/provider on construction/rebuild. Tests use fakes
+for explicit port/default absence/stale owner. No DB/network/native build/Git/
+cloud/Secret/fees. Windows Dart is policy-blocked: do not retry or bypass; Main
+handles safe formatter/hosted proof. ACK/heartbeat10–15m, blocker immediate,
+proactive completion with paths/tests/limits/external mutations then freeze.
+
 Retention execution checkpoint (Main, no delegate ownership):
 1. Goal: executable approved30/150/180 eligibility, then private SQL controls;
    this is still source preparation, never proof of live backup inventory.

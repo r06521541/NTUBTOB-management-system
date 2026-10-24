@@ -72,6 +72,7 @@ def require_account_not_erasing(
             ("0020_erasure_intake",),
             ("0021_erasure_continuity",),
             ("0022_erasure_retention",),
+            ("0023_erasure_minimal_retention",),
         ):
             raise ErasureGuardUnavailable("schema_not_ready")
         if (

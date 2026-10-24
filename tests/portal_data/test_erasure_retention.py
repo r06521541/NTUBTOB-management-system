@@ -43,7 +43,9 @@ class RetentionPostgresTests(unittest.TestCase):
             )
         command.upgrade(self.config, REVISION)
         self.now = self.connection.scalar(text("SELECT clock_timestamp()"))
-        self.requested = self.now - timedelta(days=179)
+        self.requested = self.now - timedelta(
+            days=getattr(self, "request_age_days", 179)
+        )
         self.generation = str(
             self.connection.scalar(
                 text("SELECT account_generation FROM ntubtob.people WHERE id=:id"),
@@ -346,15 +348,24 @@ class RetentionPostgresTests(unittest.TestCase):
             )
         )
 
-    def complete_with_plan(
-        self, *, online_days_ago=31, record_custody=True, unfinished=False
-    ):
+    def capture_plan(self):
         self.connection.execute(
             text(
                 "INSERT INTO ntubtob.account_erasure_sealed_plans(job_id,key_id,ciphertext) VALUES(:id,'fictional-shared-key',:blob)"
             ),
             dict(id=self.job, blob=b"x" * 60),
         )
+
+    def complete_with_plan(
+        self,
+        *,
+        online_days_ago=31,
+        record_custody=True,
+        unfinished=False,
+        capture_plan=True,
+    ):
+        if capture_plan:
+            self.capture_plan()
         online = self.now - timedelta(days=online_days_ago)
         self.fixture.update(
             self.job,

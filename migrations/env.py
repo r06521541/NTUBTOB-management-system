@@ -10,6 +10,7 @@ from sqlalchemy import engine_from_config, pool
 from shared_lib.shared_module.portal_data import (  # noqa: F401
     erasure_continuity_models,
     erasure_item_models,
+    erasure_minimal_retention_models,
     erasure_models,
     erasure_recovery_models,
     erasure_retention_models,

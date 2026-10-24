@@ -22,6 +22,7 @@ def enabled(connection, revisions=None):
         (REVISION,),
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
     }
 
 

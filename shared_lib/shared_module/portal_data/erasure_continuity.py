@@ -80,7 +80,13 @@ def effective_deadlines(connection, root, *, revisions):
             or connection.in_transaction() is not True
             or connection.get_isolation_level() != "READ COMMITTED"
             or connection.connection.dbapi_connection.autocommit is not False
-            or revisions not in LEGACY | {(REVISION,), ("0022_erasure_retention",)}
+            or revisions
+            not in LEGACY
+            | {
+                (REVISION,),
+                ("0022_erasure_retention",),
+                ("0023_erasure_minimal_retention",),
+            }
         ):
             _reject()
         receipt = _instant(root["receipt_expires_at"])

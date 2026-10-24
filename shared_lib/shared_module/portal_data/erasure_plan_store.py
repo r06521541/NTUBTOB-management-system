@@ -81,6 +81,7 @@ class ErasurePlanStore:
             ("0020_erasure_intake",),
             ("0021_erasure_continuity",),
             ("0022_erasure_retention",),
+            ("0023_erasure_minimal_retention",),
         ):
             _reject("schema_not_ready")
         for name in (
