@@ -606,6 +606,7 @@ class _PersonFulfillmentFixture:
             ).verify(session, job_id=self.job_id, assertion="fictional-one-proof")
         self.calls = []
         self.provider_result = "succeeded"
+        self.line_provider_result = "succeeded"
         self.store = FictionalRestoreStore()
         self.executor = PersonFulfillment(
             self.engine,
@@ -647,7 +648,7 @@ class _PersonFulfillmentFixture:
                     )
                 )
             return (
-                "credential_missing"
+                self.line_provider_result
                 if identity.provider == "line"
                 else self.provider_result
             )
@@ -752,6 +753,25 @@ class _PersonFulfillmentFixture:
 
 @unittest.skipUnless(ledger.DATABASE_URL, "isolated ledger URL not configured")
 class PersonFulfillmentPostgresTests(_PersonFulfillmentFixture, unittest.TestCase):
+    def test_non_apple_missing_apple_credential_is_not_provider_completion(self):
+        self.line_provider_result = "credential_missing"
+        result = self.execute()
+        self.assertEqual(result.classification, "needs_attention", result)
+        self.assertEqual(
+            self.scalar(
+                "SELECT status FROM ntubtob.account_erasure_jobs WHERE id=:id",
+                id=self.job_id,
+            ),
+            "needs_attention",
+        )
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.people WHERE id=:id",
+                id=self.fixture.person,
+            ),
+            1,
+        )
+
     def test_two_provider_person_online_completion_preserves_other_person_and_shared_content(
         self,
     ):

@@ -21,6 +21,7 @@ from ..erasure_restricted_proof import (
     RestrictedErasureProofRejected,
 )
 from ..mobile_api import utc_now
+from .erasure_continuity import effective_expiry
 from .erasure_request import (
     AccountErasureRequestRepository,
     ErasureRequestPlan,
@@ -117,16 +118,21 @@ class RestrictedErasureRequestRepository(AccountErasureRequestRepository):
                         "read_committed_transaction_required"
                     )
                 acquire_admin_event_locks(connection)
-                if tuple(
+                revisions = tuple(
                     connection.scalars(
                         text("SELECT version_num FROM ntubtob.alembic_version")
                     )
-                ) not in (
+                )
+                if revisions not in (
                     ("0016_erasure_cancellation",),
                     ("0017_erasure_work_items",),
                     ("0018_erasure_privacy_mutation",),
                     ("0019_erasure_admin_recovery",),
                     ("0020_erasure_intake",),
+                    ("0021_erasure_continuity",),
+                    ("0022_erasure_retention",),
+                    ("0023_erasure_minimal_retention",),
+                    ("0024_erasure_provider_phases",),
                 ):
                     raise ErasureRequestUnavailable("schema_not_ready")
                 for table in (
@@ -219,14 +225,21 @@ class RestrictedErasureRequestRepository(AccountErasureRequestRepository):
                     ):
                         raise ErasureRequestRejected("receipt_key_mismatch")
                     if (
-                        _instant(job["receipt_expires_at"]) <= now
+                        effective_expiry(
+                            connection, job, "receipt_expires_at", revisions=revisions
+                        )
+                        <= now
                         or _instant(job["requested_at"]) > now
-                        or _instant(job["evidence_expires_at"])
+                        or effective_expiry(
+                            connection, job, "evidence_expires_at", revisions=revisions
+                        )
                         < _instant(proof.expires_at)
                     ):
                         raise ErasureRequestRejected("receipt_unavailable")
                     requested_at = _instant(job["requested_at"])
-                    receipt_deadline = _instant(job["receipt_expires_at"])
+                    receipt_deadline = effective_expiry(
+                        connection, job, "receipt_expires_at", revisions=revisions
+                    )
                     if self.sealed_plan_store is not None:
                         self.sealed_plan_store.load(connection, job_id)
                 else:

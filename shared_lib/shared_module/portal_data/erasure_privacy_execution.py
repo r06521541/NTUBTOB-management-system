@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from ..mobile_api import utc_now
 from .erasure_legacy_execution import LegacyExecutionResult
 from .erasure_provider_execution import _Rejected, _target, _time, _uuid
+from .erasure_retention import retention_failure_reason
 from .runtime import acquire_admin_event_locks
 
 
@@ -64,6 +65,10 @@ class PrivacyDispositionExecutor:
                     ("0018_erasure_privacy_mutation",),
                     ("0019_erasure_admin_recovery",),
                     ("0020_erasure_intake",),
+                    ("0021_erasure_continuity",),
+                    ("0022_erasure_retention",),
+                    ("0023_erasure_minimal_retention",),
+                    ("0024_erasure_provider_phases",),
                 ):
                     raise _Rejected("schema_not_ready")
                 for name in (
@@ -167,6 +172,8 @@ class PrivacyDispositionExecutor:
         except _Rejected as error:
             return LegacyExecutionResult("not_applied", stage, str(error))
         except Exception as error:
+            if stage != "commit" and (reason := retention_failure_reason(error)):
+                return LegacyExecutionResult("not_applied", stage, reason)
             # Only these literal server stages may cross the exception boundary.
             original = getattr(error, "orig", None)
             diagnostic = getattr(original, "diag", None)

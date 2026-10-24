@@ -4,7 +4,7 @@ import hashlib
 import unittest
 from dataclasses import replace
 from datetime import timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from alembic import command
@@ -13,11 +13,20 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session
 
 from shared_lib.shared_module.erasure_restore_binding import RestoreBindingCodec
+from shared_lib.shared_module.portal_data import erasure_fulfillment as fulfillment
 from shared_lib.shared_module.portal_data.erasure_fulfillment import (
     LOCK_TABLES,
     PendingIdentityFulfillment,
     _inventory,
     capture_pending_snapshot,
+)
+from shared_lib.shared_module.portal_data.erasure_person_fulfillment import (
+    PersonFulfillment,
+)
+from shared_lib.shared_module.portal_data.erasure_plan_codec import ErasurePlanCodec
+from shared_lib.shared_module.portal_data.erasure_plan_store import (
+    ErasurePlanStore,
+    SealedPlanRejected,
 )
 from shared_lib.shared_module.portal_data.erasure_provider_execution import (
     PreparedProviderEffect,
@@ -52,6 +61,89 @@ class FictionalRestoreStore:
 
 
 class FulfillmentConfigurationTests(unittest.TestCase):
+    def test_pending_identity_accepts_only_exact_supported_providers(self):
+        connection = MagicMock()
+        row = dict(
+            id=1,
+            person_id=None,
+            status="pending",
+            generation=str(uuid4()),
+            digest="a" * 64,
+        )
+        connection.execute.return_value.mappings.return_value.first.return_value = row
+        for provider in ("apple", "google", "line"):
+            row["provider"] = provider
+            with self.subTest(provider=provider):
+                self.assertIs(fulfillment._identity(connection, 1), row)
+        for provider in ("unknown", "Apple", "", None):
+            row["provider"] = provider
+            with self.subTest(provider=provider):
+                with self.assertRaises(ValueError):
+                    fulfillment._identity(connection, 1)
+
+    def test_nonapple_missing_apple_credential_is_not_provider_completion(self):
+        for provider in ("google", "line"):
+            with self.subTest(provider=provider):
+                executor = object.__new__(PendingIdentityFulfillment)
+                executor.engine = MagicMock()
+                connection = MagicMock()
+                snapshot = MagicMock(
+                    identity_id=1, rows=(("apple_provider_credentials", ()),)
+                )
+                executor._context = MagicMock(
+                    return_value=(
+                        connection,
+                        {},
+                        {},
+                        {"provider": (2, "confirmed", "credential_missing")},
+                    )
+                )
+                executor._now = MagicMock(return_value=NOW)
+                executor._fence = MagicMock(
+                    side_effect=AssertionError("must not finalize")
+                )
+                with (
+                    patch.object(fulfillment, "Session"),
+                    patch.object(
+                        fulfillment, "_identity", return_value={"provider": provider}
+                    ),
+                ):
+                    result = executor._finalize(str(uuid4()), snapshot)
+                self.assertEqual(
+                    (result.classification, result.reason),
+                    ("needs_attention", "required_outcome_unconfirmed"),
+                )
+                executor._fence.assert_not_called()
+
+    def test_apple_missing_credential_retains_existing_completion_rule(self):
+        executor = object.__new__(PendingIdentityFulfillment)
+        executor.engine = MagicMock()
+        snapshot = MagicMock(identity_id=1, rows=(("apple_provider_credentials", ()),))
+        executor._context = MagicMock(
+            return_value=(
+                MagicMock(),
+                {},
+                {"final": {}},
+                {"provider": (2, "confirmed", "credential_missing")},
+            )
+        )
+        executor._now = MagicMock(return_value=NOW)
+        executor._fence, executor._event, executor._delete = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
+        with (
+            patch.object(fulfillment, "Session"),
+            patch.object(fulfillment, "_identity", return_value={"provider": "apple"}),
+            patch.object(fulfillment, "_inventory", return_value=()),
+        ):
+            result = executor._finalize(str(uuid4()), snapshot)
+        self.assertEqual(
+            (result.classification, result.reason), ("confirmed", "online_completed")
+        )
+        executor._fence.assert_called_once()
+
     def test_inventory_rechecks_every_table_rls_on_the_current_connection(self):
         for index, table in enumerate(LOCK_TABLES):
             for filtered in (True, None):
@@ -81,7 +173,11 @@ class FulfillmentConfigurationTests(unittest.TestCase):
 
 @unittest.skipUnless(ledger.DATABASE_URL, "isolated ledger URL not configured")
 class PendingFulfillmentPostgresTests(unittest.TestCase):
+    target_provider = "apple"
+
     def setUp(self):
+        # Apple preparation reuses this setup as an unbound fixture method.
+        self.target_provider = getattr(self, "target_provider", "apple")
         self.engine = create_engine(
             require_local_database_url(ledger.DATABASE_URL),
             connect_args={
@@ -104,6 +200,18 @@ class PendingFulfillmentPostgresTests(unittest.TestCase):
         self.fixture.transaction.commit()
         self.fixture.connection.close()
         with self.engine.begin() as connection:
+            if self.target_provider != "apple":
+                # Same subject in another provider is deliberately a distinct owner.
+                connection.execute(
+                    text(
+                        "UPDATE ntubtob.auth_identities SET provider=:provider,provider_subject=(SELECT provider_subject FROM ntubtob.auth_identities WHERE id=:other) WHERE id=:id"
+                    ),
+                    {
+                        "provider": self.target_provider,
+                        "id": self.fixture.identity,
+                        "other": self.fixture.other_identity,
+                    },
+                )
             for identity in (self.fixture.identity, self.fixture.other_identity):
                 self.seed(connection, identity)
             target = connection.execute(
@@ -126,7 +234,7 @@ class PendingFulfillmentPostgresTests(unittest.TestCase):
             active_key="fictional",
             keys={"fictional": b"fictional-test-key-" * 3},
         ).bind(
-            provider="apple",
+            provider=self.target_provider,
             audience="fictional",
             subject=target[0],
             generation=target[1],
@@ -157,6 +265,7 @@ class PendingFulfillmentPostgresTests(unittest.TestCase):
                 {"id": self.fixture.identity},
             )
         fresh = proof(
+            provider=self.target_provider,
             job_id=self.job_id,
             identity_id=self.fixture.identity,
             provider_subject=subject,
@@ -192,6 +301,12 @@ class PendingFulfillmentPostgresTests(unittest.TestCase):
             "access_audit": "INSERT INTO ntubtob.access_audit (action,auth_identity_id,reason,request_id,created_at) VALUES ('identity_pending',:identity,'Fictional pending',:hash,:now) RETURNING id",
         }
         for table, sql in statements.items():
+            if (
+                self.target_provider != "apple"
+                and identity == self.fixture.identity
+                and table.startswith("apple_")
+            ):
+                continue
             identifier = connection.scalar(text(sql), values)
             self.ids.setdefault(table, []).append(identifier)
             if table == "identity_review_threads":
@@ -512,6 +627,188 @@ class PendingFulfillmentPostgresTests(unittest.TestCase):
             event.remove(Session, "after_commit", uncertain)
         self.assertEqual(self.execute().reason, "receipt_read_required")
         self.assertEqual((self.calls, self.store.calls), (1, 1))
+
+
+class _NonApplePendingFixture:
+    """Reuse fixture methods, not the Apple-only credential expectations."""
+
+    seed = PendingFulfillmentPostgresTests.seed
+    cleanup_fixture = PendingFulfillmentPostgresTests.cleanup_fixture
+    prepare_provider = PendingFulfillmentPostgresTests.prepare_provider
+    invoke = PendingFulfillmentPostgresTests.invoke
+    scalar = PendingFulfillmentPostgresTests.scalar
+    test_shared_admin_content_is_preserved = (
+        PendingFulfillmentPostgresTests.test_new_shared_admin_message_drift_preserves_thread_and_identity
+    )
+
+    def plan_store(self):
+        return ErasurePlanStore(
+            active_key_id="fictional",
+            codecs={
+                "fictional": ErasurePlanCodec(namespace=self.namespace, key=b"F" * 32)
+            },
+            clock=lambda: NOW + timedelta(seconds=1),
+        )
+
+    def setUp(self):
+        self.namespace = str(uuid4())
+        original = ledger.ErasureLedgerPostgresTests.job
+
+        def job_and_plan(fixture_instance, **values):
+            job = original(fixture_instance, **values)
+            self.plan_store().store_requested(
+                fixture_instance.connection, job, self.snapshot
+            )
+            return job
+
+        with patch.object(ledger.ErasureLedgerPostgresTests, "job", job_and_plan):
+            PendingFulfillmentPostgresTests.setUp(self)
+
+    def execute(self):
+        # Reconstruct custody and the fixed executors from committed state.
+        # The provider port is explicitly fictional, not an Apple adapter fallback.
+        return self.plan_store().execute_stored(
+            self.engine,
+            job_id=self.job_id,
+            pending_executor=PendingIdentityFulfillment(
+                self.engine,
+                self.prepare_provider,
+                self.store,
+                clock=lambda: NOW + timedelta(seconds=1),
+            ),
+            person_executor=PersonFulfillment(
+                self.engine,
+                self.prepare_provider,
+                self.store,
+                clock=lambda: NOW + timedelta(seconds=1),
+            ),
+        )
+
+    def test_sealed_restart_explicit_provider_success_and_same_subject_other_owner(
+        self,
+    ):
+        self.assertEqual(dict(self.snapshot.rows)["apple_provider_credentials"], ())
+        self.assertEqual(self.execute().reason, "online_completed")
+        self.assertEqual((self.calls, self.store.calls), (1, 1))
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.auth_identities WHERE id=:id",
+                id=self.fixture.identity,
+            ),
+            0,
+        )
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.auth_identities WHERE id=:id",
+                id=self.fixture.other_identity,
+            ),
+            1,
+        )
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.apple_provider_credentials WHERE auth_identity_id=:id",
+                id=self.fixture.other_identity,
+            ),
+            1,
+        )
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.identity_review_messages WHERE id=:id",
+                id=self.ids["identity_review_messages"][1],
+            ),
+            1,
+        )
+        with Session(self.engine) as session, session.begin():
+            receipt = load_erasure_receipt(
+                session,
+                job_id=self.job_id,
+                receipt_secret=self.secret,
+                clock=lambda: NOW + timedelta(seconds=2),
+            )
+        self.assertEqual(receipt.status, "online_completed")
+        self.assertIsNone(
+            self.scalar(
+                "SELECT completed_at FROM ntubtob.account_erasure_jobs WHERE id=:id",
+                id=self.job_id,
+            )
+        )
+        with self.assertRaisesRegex(SealedPlanRejected, "receipt_read_required"):
+            self.execute()
+        self.assertEqual((self.calls, self.store.calls), (1, 1))
+
+    def assert_unconfirmed_provider(self, outcome):
+        self.provider_result = outcome
+        self.assertEqual(self.execute().classification, "needs_attention")
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.identity_review_messages WHERE id=:id",
+                id=self.ids["identity_review_messages"][0],
+            ),
+            0,
+        )
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.auth_identities WHERE id=:id",
+                id=self.fixture.identity,
+            ),
+            1,
+        )
+        self.assertIsNone(
+            self.scalar(
+                "SELECT online_completed_at FROM ntubtob.account_erasure_jobs WHERE id=:id",
+                id=self.job_id,
+            )
+        )
+        self.assertEqual(self.execute().classification, "needs_attention")
+        self.assertEqual((self.calls, self.store.calls), (1, 1))
+
+    def test_missing_apple_credential_cannot_complete_nonapple(self):
+        self.assert_unconfirmed_provider("credential_missing")
+
+    def test_manual_provider_result_cannot_complete(self):
+        self.assert_unconfirmed_provider("manual_action_needed")
+
+    def test_unknown_provider_result_cannot_complete_or_resend(self):
+        self.assert_unconfirmed_provider(None)
+
+    def test_provider_remap_rejects_old_generation_before_items_or_dispatch(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.auth_identities SET provider='apple',provider_subject=:subject WHERE id=:id"
+                ),
+                {
+                    "subject": "fictional-remap-" + str(uuid4()),
+                    "id": self.fixture.identity,
+                },
+            )
+        self.assertNotEqual(
+            self.scalar(
+                "SELECT account_generation::text FROM ntubtob.auth_identities WHERE id=:id",
+                id=self.fixture.identity,
+            ),
+            self.snapshot.generation,
+        )
+        with self.assertRaisesRegex(SealedPlanRejected, "sealed_plan_binding_changed"):
+            self.execute()
+        self.assertEqual(
+            self.scalar(
+                "SELECT count(*) FROM ntubtob.account_erasure_items WHERE job_id=:id",
+                id=self.job_id,
+            ),
+            0,
+        )
+        self.assertEqual((self.calls, self.store.calls), (0, 0))
+
+
+@unittest.skipUnless(ledger.DATABASE_URL, "isolated ledger URL not configured")
+class GooglePendingFulfillmentPostgresTests(_NonApplePendingFixture, unittest.TestCase):
+    target_provider = "google"
+
+
+@unittest.skipUnless(ledger.DATABASE_URL, "isolated ledger URL not configured")
+class LinePendingFulfillmentPostgresTests(_NonApplePendingFixture, unittest.TestCase):
+    target_provider = "line"
 
 
 if __name__ == "__main__":

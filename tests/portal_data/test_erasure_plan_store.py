@@ -19,7 +19,11 @@ from shared_lib.shared_module.portal_data.erasure_fulfillment import (
     PendingIdentitySnapshot,
     capture_pending_snapshot,
 )
-from shared_lib.shared_module.portal_data.erasure_plan_codec import ErasurePlanCodec
+from shared_lib.shared_module.portal_data.erasure_plan_codec import (
+    ErasurePlanCodec,
+    _pack,
+    _unpack,
+)
 from shared_lib.shared_module.portal_data.models import PortalDataBase
 from tests.portal_data import test_erasure_cancellation_schema as fixture
 from tests.portal_data._erasure_ledger_test_harness import _privacy_migration
@@ -57,6 +61,24 @@ class PlanStoreConfigurationTests(unittest.TestCase):
 
 
 class PlanStoreTests(unittest.TestCase):
+    def test_historical_pending_wire_and_hash_remain_exact(self):
+        historical = {
+            "type": "PendingIdentitySnapshot",
+            "value": [
+                7,
+                GENERATION,
+                "a" * 64,
+                {"type": "tuple", "value": []},
+                {"type": "RestoreBinding", "value": [1, "fictional", "b" * 64]},
+            ],
+        }
+        self.assertEqual(_pack(self.snapshot, [0]), historical)
+        self.assertEqual(_unpack(historical, [0]), self.snapshot)
+        self.assertEqual(
+            self.snapshot.scope_hash,
+            "da1439b65ba642bc65f288a02543a79250a4aacf8381f723e688bf8e0246d654",
+        )
+
     def setUp(self):
         locks = patch.object(stores, "acquire_admin_event_locks")
         self.locks = locks.start()
@@ -68,7 +90,12 @@ class PlanStoreTests(unittest.TestCase):
         self.connection.in_transaction.return_value = True
         self.connection.get_isolation_level.return_value = "READ COMMITTED"
         self.connection.connection.dbapi_connection.autocommit = False
-        self.connection.scalars.return_value = ("0018_erasure_privacy_mutation",)
+        revisions = MagicMock()
+        revisions.__iter__.side_effect = lambda: iter(
+            ("0018_erasure_privacy_mutation",)
+        )
+        revisions.all.return_value = ["0018_erasure_privacy_mutation"]
+        self.connection.scalars.return_value = revisions
         self.snapshot = PendingIdentitySnapshot(
             7, GENERATION, "a" * 64, (), RestoreBinding(1, "fictional", "b" * 64)
         )
@@ -90,9 +117,32 @@ class PlanStoreTests(unittest.TestCase):
                 self.snapshot, job_id=JOB
             ),
         )
-        self.connection.scalar.side_effect = lambda sql, *args: (
-            False if "row_security_active" in str(sql) else GENERATION
+        self.identity = dict(
+            id=7,
+            provider="apple",
+            person_id=None,
+            status="pending",
+            generation=GENERATION,
+            digest="a" * 64,
         )
+
+        def scalar(sql, *args):
+            if "row_security_active" in str(sql):
+                return False
+            if "FROM ntubtob.auth_identities" in str(sql):
+                return (
+                    self.identity["generation"]
+                    if (
+                        self.identity["provider"] == "apple"
+                        and self.identity["person_id"] is None
+                        and self.identity["status"]
+                        in {"pending", "disabled", "blocked"}
+                    )
+                    else None
+                )
+            return GENERATION
+
+        self.connection.scalar.side_effect = scalar
         self.connection.execute.side_effect = self.execute
         self.store = fictional_store()
 
@@ -103,7 +153,29 @@ class PlanStoreTests(unittest.TestCase):
             result.mappings.return_value.first.return_value = self.job
         elif "SELECT key_id,ciphertext" in str(sql):
             result.first.return_value = self.row
+        elif "FROM ntubtob.auth_identities t" in str(sql):
+            result.mappings.return_value.first.return_value = self.identity
         return result
+
+    def test_pending_current_digest_generation_and_supported_provider_are_bound(self):
+        for provider in ("apple", "google", "line"):
+            self.identity["provider"] = provider
+            with self.subTest(provider=provider):
+                self.assertEqual(self.store.load(self.connection, JOB), self.snapshot)
+        for changes in (
+            {"provider": "unknown"},
+            {"generation": NAMESPACE},
+            {"digest": "c" * 64},
+            {"person_id": 8},
+            {"status": "linked"},
+        ):
+            self.configure()
+            self.identity.update(changes)
+            with self.subTest(fields=tuple(changes)):
+                with self.assertRaisesRegex(
+                    stores.SealedPlanRejected, "sealed_plan_binding_changed"
+                ):
+                    self.store.load(self.connection, JOB)
 
     def test_load_original_no_mutation_or_recapture(self):
         self.assertEqual(self.store.load(self.connection, JOB), self.snapshot)
@@ -426,6 +498,41 @@ class PlanStorePostgresTests(unittest.TestCase):
             stores.SealedPlanUnavailable, "sealed_plan_unavailable"
         ):
             fictional_store(key=b"X" * 32).load(self.connection, job)
+
+    def test_pending_provider_or_subject_remap_and_same_generation_row_drift_reject(
+        self,
+    ):
+        for field, value in (
+            ("provider", "google"),
+            ("provider_subject", "fictional-remapped-subject"),
+            ("status", "disabled"),
+        ):
+            with self.subTest(field=field):
+                transaction = self.connection.begin_nested()
+                try:
+                    job, snapshot = self.seed()
+                    self.connection.execute(
+                        text(
+                            f"UPDATE ntubtob.auth_identities SET {field}=:value WHERE id=:id"
+                        ),
+                        {"value": value, "id": self.identity},
+                    )
+                    actual = self.connection.scalar(
+                        text(
+                            "SELECT account_generation::text FROM ntubtob.auth_identities WHERE id=:id"
+                        ),
+                        {"id": self.identity},
+                    )
+                    if field == "status":
+                        self.assertEqual(actual, snapshot.generation)
+                    else:
+                        self.assertNotEqual(actual, snapshot.generation)
+                    with self.assertRaisesRegex(
+                        stores.SealedPlanRejected, "sealed_plan_binding_changed"
+                    ):
+                        fictional_store().load(self.connection, job)
+                finally:
+                    transaction.rollback()
 
     def test_missing_plan_or_generation_mapping_drift_cannot_recapture(self):
         snapshot = self.capture()

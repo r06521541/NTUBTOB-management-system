@@ -268,7 +268,10 @@ class CandidateGuardUnitTests(guard.ErasureGuardTests):
 class CandidatePlanStoreUnitTests(custody.PlanStoreTests):
     def configure(self):
         super().configure()
-        self.connection.scalars.return_value = (CANDIDATE,)
+        self.connection.scalars.return_value.__iter__.side_effect = lambda: iter(
+            (CANDIDATE,)
+        )
+        self.connection.scalars.return_value.all.return_value = [CANDIDATE]
 
 
 class CandidateAdmissionContractTests(unittest.TestCase):

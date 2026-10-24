@@ -90,7 +90,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(AccountErasureStatus.messages['online_completed']!),
           findsOneWidget);
-      expect(find.textContaining('整體刪除流程尚未完成'), findsOneWidget);
+      expect(find.textContaining('尚非整體完成'), findsOneWidget);
       expect(
           find.text(AccountErasureStatus.messages['completed']!), findsNothing);
       expect(find.textContaining(action_fixture.secret), findsNothing);

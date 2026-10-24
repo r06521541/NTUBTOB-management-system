@@ -15,7 +15,7 @@ class AccountErasureStatus {
     'verified': '身分驗證已完成，刪除尚未完成。',
     'processing': '正在處理刪除，尚未完成。',
     'needs_attention': '處理需要進一步確認，尚未完成；不必重新提出申請。',
-    'online_completed': '線上資料處理已完成，整體刪除流程尚未完成。',
+    'online_completed': '本服務的線上資料處理已完成；第三方授權與備份仍須分別確認，尚非整體完成。',
     'completed': '服務回報刪除流程已完成；此狀態不保證收件者或外部平台的副本已移除。',
     'cancelled': '申請已取消；不代表登入權限、憑證或已處理的資料已恢復。',
   };

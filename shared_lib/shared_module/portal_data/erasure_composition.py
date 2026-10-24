@@ -94,7 +94,7 @@ def _canonical_uuid(value):
 
 
 class TrustedErasurePlanBuilder:
-    """Fixed Person / Apple pending capture from explicit trusted sources.
+    """Fixed Person / supported pending capture from explicit trusted sources.
 
     Callbacks receive keyword arguments connection, job_id, person_id,
     identity_id, target_generation, requested_at. review_source returns the
@@ -268,15 +268,15 @@ class TrustedErasurePlanBuilder:
         )
         if (
             identity is None
-            or identity["provider"] != "apple"
+            or identity["provider"] not in {"apple", "google", "line"}
             or identity["person_id"] is not None
             or identity["status"] not in {"pending", "disabled", "blocked"}
             or identity["generation"] != generation
         ):
             _reject()
         binding = self._restore_codec.bind(
-            provider="apple",
-            audience=self._provider_audiences.get("apple"),
+            provider=identity["provider"],
+            audience=self._provider_audiences.get(identity["provider"]),
             subject=identity["provider_subject"],
             generation=generation,
         )

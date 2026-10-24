@@ -1,4 +1,4 @@
-"""Default-unused Apple pending-identity fulfillment; no live composition.
+"""Default-unused supported pending-identity fulfillment; no live composition.
 
 Capture precedes request creation: its sealed digest is supplied by the existing
 trusted plan builder, never written back over a requested job's scope. The caller
@@ -6,10 +6,12 @@ retains the immutable snapshot, reviewed audit dispositions and restore binding.
 Provider preparation is trusted local read-only code; dispatch uses the existing
 commit-before-I/O executor. Restore custody is a separately injected record/read
 port, not a boolean or successful HMAC. Only fictional ports are tested here.
+Apple, Google and LINE pending identities require their own reviewed provider
+preparation; absence of an Apple credential is not non-Apple provider evidence.
 
-Unknown provider/custody outcomes do not prevent owned local cleanup, but retain
-the identity/credential and needs_attention. This avoids pretending the current
-item schema/reconciler supports post-online evidence. Person, LINE legacy stores,
+On exact schema24, unresolved provider outcomes do not retain the local target;
+custody and every nonprovider item still require proof. Older revisions retain
+their guarded identity/credential finalization. Person, LINE legacy stores,
 shared/admin content, backup completion, and runtime enablement are not supported.
 """
 
@@ -29,10 +31,12 @@ from ..mobile_api import utc_now
 from .erasure_provider_execution import (
     PreparedProviderEffect,
     ProviderErasureExecutor,
+    _provider_phases,
     _Rejected,
     _time,
     _uuid,
 )
+from .erasure_retention import retention_failure_reason
 from .runtime import acquire_admin_event_locks
 
 LOCAL_TABLES = (
@@ -61,6 +65,8 @@ class PendingIdentitySnapshot:
 
     @property
     def scope_hash(self):
+        # Historical wire/domain stays fixed. The complete identity digest and
+        # restore binding already bind the exact provider; no new snapshot format.
         return _digest(
             [
                 "pending_apple_fulfillment_v1",
@@ -153,6 +159,10 @@ def _connection(session):
         ("0018_erasure_privacy_mutation",),
         ("0019_erasure_admin_recovery",),
         ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     ):
         raise _Rejected("schema_not_ready")
     for table in (
@@ -188,11 +198,11 @@ def _identity(connection, identity_id):
     )
     if (
         row is None
-        or row["provider"] != "apple"
+        or row["provider"] not in {"apple", "google", "line"}
         or row["person_id"] is not None
         or row["status"] not in {"pending", "disabled", "blocked"}
     ):
-        raise _Rejected("pending_apple_required")
+        raise _Rejected("pending_identity_required")
     return row
 
 
@@ -256,7 +266,13 @@ def _inventory(connection, identity_id):
     )
     if tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
-    ) == ("0020_erasure_intake",):
+    ) in {
+        ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
+    }:
         expected.add(
             (
                 "ntubtob",
@@ -542,6 +558,8 @@ class PendingIdentityFulfillment:
     def _failure(error, stage):
         if isinstance(error, _Rejected):
             return FulfillmentResult("not_applied", stage, str(error))
+        if stage != "commit" and (reason := retention_failure_reason(error)):
+            return FulfillmentResult("not_applied", stage, reason)
         original = getattr(error, "orig", None)
         message = getattr(getattr(original, "diag", None), "message_primary", None)
         for check in (
@@ -604,6 +622,10 @@ class PendingIdentityFulfillment:
                         ("0018_erasure_privacy_mutation",),
                         ("0019_erasure_admin_recovery",),
                         ("0020_erasure_intake",),
+                        ("0021_erasure_continuity",),
+                        ("0022_erasure_retention",),
+                        ("0023_erasure_minimal_retention",),
+                        ("0024_erasure_provider_phases",),
                     ):
                         raise _Rejected("schema_not_ready")
                     self._context_on(connection, job_id, snapshot)
@@ -789,7 +811,13 @@ class PendingIdentityFulfillment:
                 provider_ok = provider == ("confirmed", "succeeded") or (
                     provider == ("confirmed", "credential_missing")
                     and not dict(snapshot.rows)["apple_provider_credentials"]
+                    and _identity(connection, snapshot.identity_id)["provider"]
+                    == "apple"
                 )
+                if _provider_phases(connection):
+                    # Exact workset is checked by _context. A durable start must
+                    # exist: no new dispatch can be created after target removal.
+                    provider_ok = "provider" in events
                 if not provider_ok or any(
                     not _confirmed(events, label)
                     for label in items

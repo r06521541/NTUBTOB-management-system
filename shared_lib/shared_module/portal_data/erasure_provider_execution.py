@@ -19,6 +19,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from ..mobile_api import utc_now
+from .erasure_retention import retention_failure_reason
 from .runtime import acquire_admin_event_locks
 
 
@@ -81,6 +82,10 @@ def _connection(session):
         ("0018_erasure_privacy_mutation",),
         ("0019_erasure_admin_recovery",),
         ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     ):
         raise _Rejected("schema_not_ready")
     for table in (
@@ -102,7 +107,15 @@ def _connection(session):
     return connection
 
 
-def _locked(connection, job_id, item_id):
+def _provider_phases(connection):
+    return tuple(
+        connection.scalars(
+            text("SELECT version_num FROM ntubtob.alembic_version")
+        ).all()
+    ) == ("0024_erasure_provider_phases",)
+
+
+def _locked(connection, job_id, item_id, *, allow_online=False):
     job = (
         connection.execute(
             text("SELECT * FROM ntubtob.account_erasure_jobs WHERE id=:id FOR UPDATE"),
@@ -111,11 +124,14 @@ def _locked(connection, job_id, item_id):
         .mappings()
         .first()
     )
-    if job is None or job["status"] not in {
+    statuses = {
         "verified",
         "processing",
         "needs_attention",
-    }:
+    }
+    if allow_online and _provider_phases(connection):
+        statuses.add("online_completed")
+    if job is None or job["status"] not in statuses:
         raise _Rejected("verified_job_required")
     item = (
         connection.execute(
@@ -239,7 +255,9 @@ class ProviderErasureExecutor:
                 stage = "fence_commit"
         except _Rejected as error:
             return ProviderExecutionResult("not_dispatched", stage, str(error))
-        except Exception:
+        except Exception as error:
+            if reason := retention_failure_reason(error):
+                return ProviderExecutionResult("not_dispatched", stage, reason)
             return ProviderExecutionResult("not_dispatched", stage, "fence_unconfirmed")
 
         # No Session/transaction is live while contacting the provider.
@@ -253,7 +271,7 @@ class ProviderErasureExecutor:
         try:
             with Session(self.engine) as session, session.begin():
                 connection = _connection(session)
-                job, item = _locked(connection, job_id, item_id)
+                job, item = _locked(connection, job_id, item_id, allow_online=True)
                 if job["irreversible_started_at"] is None:
                     raise _Rejected("dispatch_fence_missing")
                 now = _time(self.clock())
@@ -269,7 +287,7 @@ class ProviderErasureExecutor:
                         "now": now,
                     },
                 )
-                if effect_result is None:
+                if effect_result is None and job.get("status") != "online_completed":
                     connection.execute(
                         text(
                             "UPDATE ntubtob.account_erasure_jobs SET status='needs_attention',updated_at=:now WHERE id=:id"

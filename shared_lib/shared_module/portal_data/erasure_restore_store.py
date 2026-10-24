@@ -1,4 +1,4 @@
-"""Default-unused create-only GCS custody for the two fixed restore DTOs.
+"""Default-unused GCS custody and separately injected exact-version privacy purge.
 
 The trusted caller supplies an already authorized discovery client, bucket and
 environment namespace. Construction does no I/O and performs no credential lookup.
@@ -11,11 +11,18 @@ and sink limit accumulated bytes, NOT hostile transport memory: this SDK receive
 the HTTP response before sink.write. Trusted transport composition must separately
 provide HTTP timeouts/response bounds. A socket timeout is not an overall deadline.
 Failures never authorize a resend; even 412 requires separate read-only review.
+The purger removes only the exact active version. Neither an acknowledgement nor
+a version-specific 404 proves soft-deleted, non-current or other backup copies are
+gone. No policy completion follows. Trusted composition separately supplies the
+purger's least-privilege client and disables sensitive SDK/transport debug logs;
+this module grants no IAM rights or new authority to the ordinary custody writer.
 """
 
 import io
 import json
 import re
+from dataclasses import dataclass
+from threading import Lock
 from uuid import UUID
 
 from googleapiclient.errors import HttpError
@@ -40,6 +47,33 @@ class RestoreStoreRejected(ValueError):
 
 class RestoreStoreUnavailable(RuntimeError):
     """Fixed stage failure; never an absence, successful write or retry signal."""
+
+
+@dataclass(frozen=True, repr=False)
+class RestoreObjectVersion:
+    """Private metadata, not approval or a complete backup inventory."""
+
+    bucket: str
+    namespace: str
+    item_id: str
+    generation: str
+    size: int
+
+
+@dataclass(frozen=True, repr=False)
+class VersionedRestoreRecord:
+    record: PendingRestoreRecord | PersonRestoreRecord
+    version: RestoreObjectVersion
+
+
+@dataclass(frozen=True)
+class RestoreVersionOutcome:
+    """Fixed diagnostics only; never contains an object path or record payload."""
+
+    stage: str
+    classification: str
+    delete_dispatched: bool = False
+    next_action: str = "read_only_version_review"
 
 
 def _reject():
@@ -172,14 +206,7 @@ class _BoundedSink(io.BytesIO):
         return super().write(value)
 
 
-class GcsErasureRestoreStore:
-    """Fixed UUID-addressed put/read. No listing, overwrites or internal retries.
-
-    A put result is only a create acknowledgement. Existing coordinators must
-    still read it and compare the exact DTO before recording confirmed custody.
-    read accepts an item UUID, not a bucket, path, generation or arbitrary URL.
-    """
-
+class _RestoreLocation:
     def __init__(self, *, client, bucket, namespace):
         _uuid(namespace)
         if (
@@ -211,6 +238,16 @@ class GcsErasureRestoreStore:
         _positive_decimal(metadata["generation"], 2**64 - 1)
         size = _positive_decimal(metadata["size"], _MAX_BYTES)
         return metadata["generation"], size
+
+
+class GcsErasureRestoreStore(_RestoreLocation):
+    """Fixed UUID-addressed put/read. No delete, listing, overwrites or retries.
+
+    A put result is only a create acknowledgement. Existing coordinators must
+    still read it and compare the exact DTO before recording confirmed custody.
+    read accepts an item UUID, not a bucket, path, generation or arbitrary URL.
+    read_versioned returns the same validated DTO with private version metadata.
+    """
 
     def put(self, record):
         blob = _encode(record, self._namespace)
@@ -245,6 +282,9 @@ class GcsErasureRestoreStore:
         return record.item_id
 
     def read(self, identifier):
+        return self.read_versioned(identifier).record
+
+    def read_versioned(self, identifier):
         name = self._name(identifier)
         try:
             metadata = (
@@ -280,6 +320,120 @@ class GcsErasureRestoreStore:
                     or sink.tell() != size
                 ):
                     _reject()
-                return _decode(sink.getvalue(), self._namespace, identifier)
+                return VersionedRestoreRecord(
+                    _decode(sink.getvalue(), self._namespace, identifier),
+                    RestoreObjectVersion(
+                        self._bucket, self._namespace, identifier, generation, size
+                    ),
+                )
             except Exception:
                 _unavailable("restore_store_media_rejected")
+
+
+class GcsErasureRestorePurger(_RestoreLocation):
+    """Separate, explicit private client for one-shot current-version removal.
+
+    The trusted coordinator must authorize and durably fence each dispatch before
+    calling purge. This instance's memoization only prevents local repetition; it
+    is NOT a durable fence across restarts/new clients. Preflight and delete are
+    not atomic: ifGenerationMatch protects the current object from replacement
+    races. Do not select a historical generation for deletion. Readback selects
+    only the known generation and cannot authorize resend or establish all-copy
+    absence, retention compliance or complete policy fulfillment.
+    """
+
+    def __init__(self, *, client, bucket, namespace):
+        super().__init__(client=client, bucket=bucket, namespace=namespace)
+        self._outcomes = {}
+        self._lock = Lock()
+
+    def _validate_version(self, version):
+        if (
+            type(version) is not RestoreObjectVersion
+            or type(version.bucket) is not str
+            or version.bucket != self._bucket
+            or type(version.namespace) is not str
+            or version.namespace != self._namespace
+            or type(version.size) is not int
+            or not 0 < version.size <= _MAX_BYTES
+        ):
+            _reject()
+        _positive_decimal(version.generation, 2**64 - 1)
+        return self._name(version.item_id)
+
+    def _observe(self, version, name, *, stage):
+        arguments = dict(bucket=self._bucket, object=name, fields=_METADATA_FIELDS)
+        if stage == "presence":
+            arguments["generation"] = version.generation
+        try:
+            metadata = self._client.objects().get(**arguments).execute(num_retries=0)
+        except HttpError as error:
+            status = getattr(error.resp, "status", None)
+            classification = {
+                404: (
+                    "version_not_found" if stage == "presence" else "current_not_found"
+                ),
+                412: "version_conflict",
+            }.get(status, "metadata_unavailable")
+            return RestoreVersionOutcome(stage, classification)
+        except Exception:
+            return RestoreVersionOutcome(stage, "metadata_unavailable")
+        try:
+            generation, size = self._metadata(metadata, name)
+        except Exception:
+            return RestoreVersionOutcome(stage, "metadata_rejected")
+        if generation != version.generation or size != version.size:
+            return RestoreVersionOutcome(stage, "version_conflict")
+        return None
+
+    def read_version_presence(self, version):
+        name = self._validate_version(version)
+        return self._observe(version, name, stage="presence") or RestoreVersionOutcome(
+            "presence", "version_present"
+        )
+
+    def purge(self, version):
+        name = self._validate_version(version)
+        key = (version.item_id, version.generation)
+        with self._lock:
+            if key in self._outcomes:
+                return self._outcomes[key]
+            self._outcomes[key] = RestoreVersionOutcome(
+                "preflight", "metadata_unavailable"
+            )
+        outcome = self._observe(version, name, stage="preflight")
+        if outcome is None:
+            # Preserve this fact before invoking any potentially external SDK
+            # operation, including on reentrant/concurrent calls or interruption.
+            with self._lock:
+                self._outcomes[key] = RestoreVersionOutcome(
+                    "delete", "delete_outcome_unknown", True
+                )
+            try:
+                reply = (
+                    self._client.objects()
+                    .delete(
+                        bucket=self._bucket,
+                        object=name,
+                        ifGenerationMatch=version.generation,
+                    )
+                    .execute(num_retries=0)
+                )
+                # Discovery's RawModel maps a successful 204 to this exact value.
+                classification = (
+                    "active_version_removed"
+                    if type(reply) is str and reply == ""
+                    else "delete_outcome_unknown"
+                )
+            except HttpError as error:
+                classification = {
+                    404: "current_not_found",
+                    412: "version_conflict",
+                    403: "delete_rejected",
+                }.get(getattr(error.resp, "status", None), "delete_outcome_unknown")
+            except Exception:
+                classification = "delete_outcome_unknown"
+            outcome = RestoreVersionOutcome("delete", classification, True)
+        with self._lock:
+            self._outcomes[key] = outcome
+        return outcome

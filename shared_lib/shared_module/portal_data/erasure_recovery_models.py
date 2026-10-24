@@ -33,14 +33,15 @@ account_erasure_admin_recovery_operations = Table(
             name="fk_erasure_admin_recovery_job",
             ondelete="RESTRICT",
         ),
-        nullable=False,
+        nullable=True,
     ),
-    Column("expected_generation", UUID(as_uuid=False), nullable=False),
-    Column("scope_hash", CHAR(64), nullable=False),
+    Column("expected_generation", UUID(as_uuid=False), nullable=True),
+    Column("scope_hash", CHAR(64), nullable=True),
     Column("expected_epoch", BigInteger, nullable=False),
     Column("applied_epoch", BigInteger, nullable=False),
     Column("operator_session_user", String(63), nullable=False),
     Column("applied_at", DateTime(timezone=True), nullable=False),
+    Column("minimized_at", DateTime(timezone=True)),
     PrimaryKeyConstraint("operation_id", name="pk_erasure_admin_recovery"),
     UniqueConstraint("job_id", name="uq_erasure_admin_recovery_job"),
     CheckConstraint(
@@ -54,6 +55,12 @@ account_erasure_admin_recovery_operations = Table(
         "applied_epoch = expected_epoch + 1", name="ck_erasure_recovery_applied_epoch"
     ),
     CheckConstraint("isfinite(applied_at)", name="ck_erasure_recovery_applied_at"),
+    CheckConstraint(
+        "(minimized_at IS NULL AND job_id IS NOT NULL AND expected_generation IS NOT NULL AND scope_hash IS NOT NULL) "
+        "OR (minimized_at IS NOT NULL AND isfinite(minimized_at) AND minimized_at>=applied_at "
+        "AND job_id IS NULL AND expected_generation IS NULL AND scope_hash IS NULL)",
+        name="ck_erasure_recovery_minimized",
+    ),
     schema=SCHEMA,
 )
 

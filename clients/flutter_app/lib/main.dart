@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anonymous_crash.dart';
-import 'basic_app.dart';
+import 'account_erasure_runtime.dart';
 import 'foundation.dart';
 import 'integration.dart';
 import 'production_demo.dart';
@@ -34,7 +34,7 @@ Future<void> main() async {
           } on Object {
             // Optional diagnostics must not prevent the existing fail-closed
             // boot UI from handling unavailable secure storage.
-            runApp(BasicBootstrapApp(config: config, store: store));
+            runApp(composeAccountErasureRoot(config: config, store: store));
             return;
           }
           final hooks = AnonymousCrashHooks(AnonymousCrashReporter(
@@ -53,7 +53,7 @@ Future<void> main() async {
               (details) => hooks.flutter(details, previousFlutter);
           PlatformDispatcher.instance.onError = (error, stackTrace) =>
               hooks.platform(error, stackTrace, previousPlatform);
-          runApp(BasicBootstrapApp(
+          runApp(composeAccountErasureRoot(
             config: config,
             store: store,
             crashQueue: queue,
@@ -81,4 +81,4 @@ Future<void> main() async {
 
 Widget composeRoot(AppConfig config) => config.mode == ClientMode.fake
     ? ProductionDemoApp(flavor: FlavorConfig(config.flavor))
-    : BasicBootstrapApp(config: config);
+    : composeAccountErasureRoot(config: config);

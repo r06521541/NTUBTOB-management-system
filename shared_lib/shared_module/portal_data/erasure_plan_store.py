@@ -13,9 +13,15 @@ from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
 from ..mobile_api import utc_now
-from .erasure_fulfillment import PendingIdentityFulfillment, PendingIdentitySnapshot
+from .erasure_continuity import effective_expiry
+from .erasure_fulfillment import (
+    PendingIdentityFulfillment,
+    PendingIdentitySnapshot,
+    _identity,
+)
 from .erasure_person_fulfillment import PersonFulfillment, PersonSnapshot
 from .erasure_plan_codec import ErasurePlanCodec
+from .erasure_provider_execution import _Rejected
 from .erasure_request import _instant, _uuid
 from .runtime import acquire_admin_event_locks
 
@@ -73,6 +79,10 @@ class ErasurePlanStore:
             ("0018_erasure_privacy_mutation",),
             ("0019_erasure_admin_recovery",),
             ("0020_erasure_intake",),
+            ("0021_erasure_continuity",),
+            ("0022_erasure_retention",),
+            ("0023_erasure_minimal_retention",),
+            ("0024_erasure_provider_phases",),
         ):
             _reject("schema_not_ready")
         for name in (
@@ -109,13 +119,13 @@ class ErasurePlanStore:
             "needs_attention",
         }:
             _reject("receipt_read_required")
-        self._time(job)
+        self._time(job, connection=connection)
         return job
 
-    def _time(self, job, *, earliest=None):
+    def _time(self, job, *, earliest=None, connection):
         now = _instant(self._clock())
-        if not _instant(job["requested_at"]) <= now < _instant(
-            job["evidence_expires_at"]
+        if not _instant(job["requested_at"]) <= now < effective_expiry(
+            connection, job, "evidence_expires_at"
         ) or (earliest is not None and now < earliest):
             _reject("sealed_plan_expired")
         return now
@@ -149,12 +159,13 @@ class ErasurePlanStore:
                 or job["person_id"] is not None
             ):
                 _reject("sealed_plan_binding_changed")
-            actual = connection.scalar(
-                text(
-                    "SELECT account_generation::text FROM ntubtob.auth_identities WHERE id=:id AND person_id IS NULL AND provider='apple' AND status IN ('pending','disabled','blocked') FOR UPDATE"
-                ),
-                {"id": snapshot.identity_id},
-            )
+            try:
+                identity = _identity(connection, snapshot.identity_id)
+            except _Rejected:
+                _reject("sealed_plan_binding_changed")
+            if not hmac.compare_digest(identity["digest"], snapshot.identity_digest):
+                _reject("sealed_plan_binding_changed")
+            actual = identity["generation"]
         else:
             _reject("sealed_plan_binding_changed")
         if actual != snapshot.generation:
@@ -169,7 +180,7 @@ class ErasurePlanStore:
             if type(snapshot) not in (PersonSnapshot, PendingIdentitySnapshot):
                 _reject("sealed_plan_binding_changed")
             self._binding(connection, job, snapshot)
-            started = self._time(job)
+            started = self._time(job, connection=connection)
             blob = self._codecs[self._active_key_id].encode(snapshot, job_id=job_id)
             connection.execute(
                 text(
@@ -179,7 +190,7 @@ class ErasurePlanStore:
             )
             if self.load(connection, job_id) != snapshot:
                 _reject("sealed_plan_readback_changed")
-            self._time(job, earliest=started)
+            self._time(job, earliest=started, connection=connection)
         except SealedPlanRejected:
             raise
         except Exception:
@@ -196,7 +207,7 @@ class ErasurePlanStore:
             ).first()
             if row is None:
                 _reject("sealed_plan_missing")
-            started = self._time(job)
+            started = self._time(job, connection=connection)
             codec = self._codecs.get(row[0])
             if codec is None:
                 _reject("sealed_plan_key_unavailable")
@@ -208,7 +219,7 @@ class ErasurePlanStore:
                 scope_hash=job["scope_hash"],
             )
             self._binding(connection, job, snapshot)
-            self._time(job, earliest=started)
+            self._time(job, earliest=started, connection=connection)
             return snapshot
         except SealedPlanRejected:
             raise
@@ -231,6 +242,8 @@ class ErasurePlanStore:
                 job = self._locked(connection, job_id)
                 if job["status"] == "requested":
                     _reject("verified_job_required")
+                if job["status"] in {"online_completed", "completed"}:
+                    _reject("receipt_read_required")
                 snapshot = self.load(connection, job_id)
         except SealedPlanRejected:
             raise

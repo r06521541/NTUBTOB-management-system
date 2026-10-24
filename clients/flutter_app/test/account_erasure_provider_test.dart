@@ -29,28 +29,110 @@ class ProofPorts implements AppleLoginPort, LineLoginPort {
   }
 }
 
+class GoogleProofPort implements GoogleFreshAuthorizationPort {
+  GoogleProofPort(this.ports);
+  final ProofPorts ports;
+
+  @override
+  Future<String> authorize(String nonce,
+      {required void Function() beforePrompt}) {
+    beforePrompt();
+    return ports.login(nonce);
+  }
+}
+
 void main() {
   final nonce = 'n' * 43;
   final rejected = throwsA(isA<ErasureFreshProviderUnavailable>());
-  for (final name in ['apple', 'line']) {
+  for (final name in ['apple', 'google', 'line']) {
     group(name, () {
       late ProofPorts ports;
       late ErasureFreshProvider provider;
       late bool current;
       late bool online;
+      Future<void> Function()? refresh;
       setUp(() {
         ports = ProofPorts();
         current = true;
         online = true;
+        refresh = null;
         void requireCurrent() {
-          if (!current) throw StateError('fictional private native detail');
+          if (!current) {
+            throw StateError('fictional private native detail');
+          }
         }
 
-        provider = name == 'apple'
-            ? AppleErasureFreshProvider(ports,
-                requireCurrent: requireCurrent, isOnline: () => online)
-            : LineErasureFreshProvider(ports,
-                requireCurrent: requireCurrent, isOnline: () => online);
+        provider = switch (name) {
+          'apple' => AppleErasureFreshProvider(ports,
+              requireCurrent: requireCurrent,
+              isOnline: () => online,
+              afterAuthorization: () async {
+                await refresh?.call();
+              }),
+          'google' => GoogleErasureFreshProvider(GoogleProofPort(ports),
+              requireCurrent: requireCurrent,
+              isOnline: () => online,
+              afterAuthorization: () async {
+                await refresh?.call();
+              }),
+          _ => LineErasureFreshProvider(ports,
+              requireCurrent: requireCurrent,
+              isOnline: () => online,
+              afterAuthorization: () async {
+                await refresh?.call();
+              }),
+        };
+      });
+
+      test('native return awaits reachability once without another prompt',
+          () async {
+        final checked = Completer<void>();
+        final entered = Completer<void>();
+        ports.result = () async {
+          online = false;
+          return 'fictional-proof';
+        };
+        refresh = () async {
+          entered.complete();
+          await checked.future;
+          online = true;
+        };
+        final pending = provider.authenticate(nonce);
+        await entered.future;
+        expect(ports.nonces.length, 1);
+        expect(online, isFalse);
+        checked.complete();
+        expect(await pending, 'fictional-proof');
+        expect(ports.nonces.length, 1);
+        expect(ports.logoutCalls, 0);
+      });
+
+      test('stale native return does not even refresh', () async {
+        var checks = 0;
+        ports.result = () async {
+          current = false;
+          return 'fictional-proof';
+        };
+        refresh = () async {
+          checks++;
+        };
+        await expectLater(provider.authenticate(nonce), rejected);
+        expect(checks, 0);
+      });
+
+      test('stale during refresh or failed probe cannot accept assertion',
+          () async {
+        refresh = () async {
+          current = false;
+          online = true;
+        };
+        await expectLater(provider.authenticate(nonce), rejected);
+        current = true;
+        refresh = () async {
+          online = false;
+        };
+        await expectLater(provider.authenticate(nonce), rejected);
+        expect(ports.logoutCalls, 0);
       });
 
       test('forwards fresh nonce without logout or enrollment envelope',

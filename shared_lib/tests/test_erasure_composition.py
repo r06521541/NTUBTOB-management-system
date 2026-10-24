@@ -156,7 +156,11 @@ class TrustedPlanBuilderTests(unittest.TestCase):
         self.codec = RestoreBindingCodec(
             namespace=OTHER, active_key="fictional", keys={"fictional": b"F" * 32}
         )
-        self.audiences = {"apple": "fictional.apple", "line": "fictional.line"}
+        self.audiences = {
+            "apple": "fictional.apple",
+            "google": "fictional.google",
+            "line": "fictional.line",
+        }
         self.policy = self.module.ErasurePlanPolicy(
             retention_policy_version=1,
             fulfillment_due_at=NOW + timedelta(hours=1),
@@ -310,12 +314,48 @@ class TrustedPlanBuilderTests(unittest.TestCase):
             with self.assertRaises(self.module.ErasurePlanRejected):
                 self.builder(**self.values(person_id=7))
 
-    def test_pending_restore_binding_requires_actual_apple_pending_exact_generation(
+    def test_pending_each_supported_provider_binds_its_exact_audience_and_subject(self):
+        for provider in ("apple", "google", "line"):
+            with self.subTest(provider=provider):
+                self.row["provider"] = provider
+                binding = self.codec.bind(
+                    provider=provider,
+                    audience=self.audiences[provider],
+                    subject=self.row["provider_subject"],
+                    generation=GEN,
+                )
+                self.pending_capture.return_value = replace(
+                    self.pending, restore_binding=binding
+                )
+                result = self.builder(**self.values())
+                self.assertEqual(result.snapshot.restore_binding, binding)
+                self.assertEqual(
+                    self.pending_capture.call_args.kwargs["restore_binding"], binding
+                )
+                self.assert_no_transaction_management()
+
+    def test_pending_cross_provider_binding_and_absent_audience_reject(self):
+        self.row["provider"] = "line"
+        # The capture port cannot substitute the historical Apple binding.
+        with self.assertRaises(self.module.ErasurePlanRejected):
+            self.builder(**self.values())
+        builder = self.module.TrustedErasurePlanBuilder(
+            review_source=self.review_source,
+            policy_source=self.policy_source,
+            restore_codec=self.codec,
+            provider_audiences={"apple": "fictional.apple"},
+        )
+        self.pending_capture.reset_mock()
+        with self.assertRaises(self.module.ErasurePlanRejected):
+            builder(**self.values())
+        self.pending_capture.assert_not_called()
+
+    def test_pending_restore_binding_requires_supported_pending_exact_generation(
         self,
     ):
         variants = [None]
         for key, value in (
-            ("provider", "line"),
+            ("provider", "unknown"),
             ("person_id", 7),
             ("status", "linked"),
             ("generation", OTHER),

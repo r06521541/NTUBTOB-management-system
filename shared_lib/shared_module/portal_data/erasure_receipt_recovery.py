@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from ..erasure_recovery_proof import RECEIPT_RECOVERY_PURPOSE, FreshReceiptRecoveryProof
 from ..mobile_api import utc_now
+from .erasure_continuity import effective_expiry
 from .erasure_intake_routing import target_row
 from .runtime import acquire_admin_event_locks
 
@@ -38,6 +39,10 @@ _REVISIONS = frozenset(
         ("0018_erasure_privacy_mutation",),
         ("0019_erasure_admin_recovery",),
         ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     }
 )
 
@@ -230,7 +235,7 @@ class ReceiptRecoveryRepository:
                     column,
                     target,
                     "id,target_kind,person_id,auth_identity_id,expected_generation,status,"
-                    "requested_at,updated_at,receipt_secret_hash,receipt_expires_at ",
+                    "requested_at,updated_at,receipt_secret_hash,receipt_expires_at,evidence_expires_at ",
                     revisions,
                 )
                 if (
@@ -252,7 +257,9 @@ class ReceiptRecoveryRepository:
                 requested, updated, deadline = (
                     _utc(job["requested_at"]),
                     _utc(job["updated_at"]),
-                    _utc(job["receipt_expires_at"]),
+                    effective_expiry(
+                        connection, job, "receipt_expires_at", revisions=revisions
+                    ),
                 )
                 # Strictly later issuance prevents an old subject-only proof from
                 # binding a rebuilt account/job or a later remap into an older job.

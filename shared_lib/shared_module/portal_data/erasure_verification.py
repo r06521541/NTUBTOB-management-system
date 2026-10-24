@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..mobile_api import utc_now
+from .erasure_continuity import ContinuityUnavailable, effective_expiry
 from .erasure_intake_routing import INTAKES, receipt_table
 from .runtime import acquire_admin_event_locks
 
@@ -142,6 +143,10 @@ class ErasureVerificationCoordinator:
                 ("0018_erasure_privacy_mutation",),
                 ("0019_erasure_admin_recovery",),
                 ("0020_erasure_intake",),
+                ("0021_erasure_continuity",),
+                ("0022_erasure_retention",),
+                ("0023_erasure_minimal_retention",),
+                ("0024_erasure_provider_phases",),
             ):
                 raise ErasureVerificationUnavailable("schema_not_ready")
             for table in (
@@ -164,7 +169,7 @@ class ErasureVerificationCoordinator:
             job = (
                 connection.execute(
                     text(
-                        "SELECT id,status,target_kind,person_id,auth_identity_id,expected_generation,requested_at,updated_at,receipt_expires_at "
+                        "SELECT id,status,target_kind,person_id,auth_identity_id,expected_generation,requested_at,updated_at,receipt_expires_at,evidence_expires_at,receipt_secret_hash "
                         f"FROM ntubtob.{table} WHERE id=:id FOR UPDATE"
                     ),
                     {"id": job_id},
@@ -245,7 +250,13 @@ class ErasureVerificationCoordinator:
                 or expires_at <= now
                 or expires_at <= authenticated_at
                 or now < job["updated_at"]
-                or (table == INTAKES and _instant(job["receipt_expires_at"]) <= now)
+                or (
+                    table == INTAKES
+                    and effective_expiry(
+                        connection, job, "receipt_expires_at", revisions=revisions
+                    )
+                    <= now
+                )
             ):
                 raise ErasureVerificationRejected("proof_not_fresh")
             # Core savepoint avoids Session.begin_nested's unconditional autoflush.
@@ -279,7 +290,7 @@ class ErasureVerificationCoordinator:
                         {"job": job_id, "now": now},
                     )
             return VerifiedErasureRequest(job_id, now)
-        except SQLAlchemyError:
+        except (SQLAlchemyError, ContinuityUnavailable):
             raise ErasureVerificationUnavailable(
                 "verification_storage_unavailable"
             ) from None

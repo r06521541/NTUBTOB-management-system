@@ -32,6 +32,8 @@ class AccountErasureOwner {
     required Listenable connectivity,
     AppleLoginPort? apple,
     LineLoginPort? line,
+    GoogleFreshAuthorizationPort? google,
+    Future<void> Function()? afterAuthorization,
     SecureIds? ids,
   })  : _store = store,
         _session = session,
@@ -40,6 +42,8 @@ class AccountErasureOwner {
         _connectivity = connectivity,
         _apple = apple,
         _line = line,
+        _google = google,
+        _afterAuthorization = afterAuthorization,
         _ids = ids ?? SecureIds(),
         _sessionGeneration = session.generation {
     _cleanup = _OwnerCleanup(this, SessionBoundErasureCleanup(session));
@@ -55,6 +59,8 @@ class AccountErasureOwner {
   final Listenable _connectivity;
   final AppleLoginPort? _apple;
   final LineLoginPort? _line;
+  final GoogleFreshAuthorizationPort? _google;
+  final Future<void> Function()? _afterAuthorization;
   final SecureIds _ids;
   late final _OwnerCleanup _cleanup;
   int _sessionGeneration;
@@ -90,8 +96,9 @@ class AccountErasureOwner {
 
   void _requireProvider(String provider) {
     if (!((provider == 'apple' && _apple != null) ||
+        (provider == 'google' && _google != null) ||
         (provider == 'line' && _line != null))) {
-      // GoogleLoginPort has no nonce contract. Never fall back to normal login.
+      // Missing fresh ports never fall back to normal login.
       throw const ErasureReceiptUnavailable();
     }
   }
@@ -100,10 +107,20 @@ class AccountErasureOwner {
     _requireProvider(name);
     if (name == 'apple') {
       return AppleErasureFreshProvider(_apple!,
-          requireCurrent: requireCurrent, isOnline: _isOnline);
+          requireCurrent: requireCurrent,
+          isOnline: _isOnline,
+          afterAuthorization: _afterAuthorization);
+    }
+    if (name == 'google') {
+      return GoogleErasureFreshProvider(_google!,
+          requireCurrent: requireCurrent,
+          isOnline: _isOnline,
+          afterAuthorization: _afterAuthorization);
     }
     return LineErasureFreshProvider(_line!,
-        requireCurrent: requireCurrent, isOnline: _isOnline);
+        requireCurrent: requireCurrent,
+        isOnline: _isOnline,
+        afterAuthorization: _afterAuthorization);
   }
 
   Future<AccountErasureFlowPort> start(

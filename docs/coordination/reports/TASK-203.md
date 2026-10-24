@@ -1,5 +1,265 @@
 # TASK-203 implementation evidence and scope consolidation
 
+## Activation-readiness candidate — 2026-10-24 (not enabled)
+
+### Pending cost decision (not authority)
+
+Official rendered pricing rechecked2026-10-24, Taiwan(asia-east1), monthly radio:
+Standard regional flat namespace USD0.02/GiB-month; ClassA USD0.005/1000,
+ClassB USD0.0004/1000. General egress to Taiwan USD0.12/GiB at first tier;
+same-region GCP transfer free, not Supabase/external transfer. AlwaysFree excludes
+Taiwan. Browser pricing selections only, no resource/billing mutation.
+Secret Manager five single-location versions at USD0.06 each means USD0.30/month
+if existing shared free quota consumed; enabled AND disabled count. First10000
+accesses free per billing account; conservatively allow USD0.03/10000 if consumed.
+
+Planning envelope (not measured current DB size): combined active/noncurrent/soft
+deleted storage <=1GiB-month, <=1000 A, <=10000 B, <=10000 secret reads and <=1GiB
+external egress gives 0.02+0.005+0.004+0.30+0.03+0.12=USD0.479/month before tax/FX.
+Do not present this component subtotal as all-in rollout pricing: current DB backup
+size, CloudBuild/ArtifactRegistry/CloudRun existing quotas and inherited IAM remain
+unverified. No PITR/paid DB/VM/SaaS. Prefer current project, exact approved Taiwan
+buckets and existing API; no region change or general infrastructure expansion.
+
+Suggested future authority, if Owner chooses paid path: one-off rollout budget
+USD5 plus ongoing USD1/month for this bounded staging custody/key use, subject to
+fresh measured inventory and priced operations fitting BEFORE dispatch. This is
+a proposed budget, not permission or a provider-enforced hardcap. Unknown/exceeding
+estimate still stops that operation; never destroy necessary evidence to meet it.
+Alternative keep incremental0: keep feature off and retain source/CI readiness;
+reusing CloudBuild bucket weakens isolation, US region changes approved locality
+and still does not prove free account-wide quota. Neither is an automatic fallback.
+Primary sources: https://cloud.google.com/storage/pricing and
+https://cloud.google.com/secret-manager/pricing . Existing zero authority unchanged.
+
+Exact28e8ead4115f25766f810d000ce928b926935d74 full localPG16 finished:
+1216 tests run OK/skipped2 (1214 passed),350.186s. All four local fixture URL
+variables bound to owned localhost55438; native bootstrap/head24 then discover
+tests/portal_data, unbuffered Python preserved numeric summary. Shared-erasure
+245PASS0.647s. Same exact hosted40066777010 Android format/analyze PASS,
+582tests PASS/2FAIL: lost-response false/true cases both expect old online wording
+at composition_test:93. Main changes only that literal to actual new wording;
+independent source ACCEPT received/released, existing no-full-completion/no-secret/
+no-double-verification assertions retained. Hosted40066777010 completed FAILURE:
+all14 other jobs PASS including PG15/16 and both iOS; final gate failed due Android
+tests only. Corrected samePR exact candidate still needs observation. No guard relaxation.
+
+Current0024 source checkpoint: exact revision separates verified local cleanup
+from provider/backup closure. Unresolved provider no longer retains the local
+account after every nonprovider item and restore suppression are confirmed;
+it never becomes full completed or authorizes new dispatch. Late trusted evidence
+can close only an existing started provider item, without the deleted target or
+raw plan. Plan+30 purge requires both item and legacy-step nonprovider closure;
+runtime RLS inventory includes steps. Missing/manual/unknown never permit full
+completion/minimal180. Older revisions keep the original guarded policy.
+No new tables/statuses/grants/long-term Google or LINE token custody.
+
+Actual RED18:15PASS/3FAIL12.636s (last outcome sequence consumed by manual result,
+same-timestamp downgrade, unresolved nonprovider legacy step). Corrected frozen
+18 realPG PASS10.508s on fresh localhost55438, independent source ACCEPT received.
+First fixture attempt3errors and next6errors were test isolation/inventory/replay
+preconditions, not semantic RED: retained55435 untouched, new tests use existing
+FreshErasureDatabases owned clones, never trigger disabling or evidence deletion.
+Upgrade refuses historical false completion; unused native downgrade restores
+exact function bodies/ACL. Used incompatible histories refuse native downgrade.
+Old seq3 non-success history remains unresolved; no automatic repair/backfill.
+
+Main37Python quality PASS; readiness29runOK/skipped6. Shared rebuilt/reinstalled
+offline after initial filesystem permission rejection; installed Mobile127/Web267/
+LINE26/notify11/broadcast28PASS. Current fullPG16 running, not yet called green.
+Exactd64ebcfbeba81bf18e6a966483435e16cf7e7318 hosted40065730871 FAILURE:
+PG15/16/services PASS; Android analyzer rejects Client class vs constructor tearoff
+(Main fixes http.Client.new); iOS unsigned reports Development Team/Provisioning
+requirement, not proven same cause. No signing settings changed to mask failure.
+Same-PR corrected exact candidate must earn its own hosted evidence.
+
+Remaining live gate is unchanged zero-incremental-fee authority: observed staging
+has no isolated erasure/backup bucket. Taiwan GCS is outside Always Free regions;
+five new single-location Secret versions could cost USD0.30/month if existing
+billing-account free quota is consumed, before storage/operations/transfer.
+Account-wide quotas not verified; Taiwan component rates now verified above,
+not an all-in quote or zero-cost promise. No bucket/key/IAM/provider/deploy mutation performed. Actual
+review/operator/custody/backup proof and provider-specific bounded adapters still
+need integration before real account handling, never infer readiness from CI.
+Sources rechecked2026-10-24: https://cloud.google.com/storage/pricing and
+https://cloud.google.com/secret-manager/pricing . No budget increase assumed.
+
+New default-off runtime continuation: actual API bootstrap conditionally injects
+the intake/receipt/fresh-proof service, with distinct keys, exact guard opt-in,
+complete Apple configuration and singleton nonce-bound Google audience. No
+executor/materializer/store is created at intake. Actual three real App roots
+share a strict staging-only entry gate; disabled behavior remains unchanged.
+Optional post-native-auth bounded reachability refresh fixes pause/resume return
+race, without another prompt or weakened offline/currentness. Stable options/
+root across connectivity; config/platform/store replacement retires original root.
+Independent bounded source ACCEPTs received for backend/App, Main corrected App
+two lifecycle/root findings before acceptance; native tests still require hosted.
+
+Actual isolatedPG Person regression reproduced a false online completion when
+LINE credential_missing meant only no Apple credential row. Person exception now
+Apple-only, consistent with pending; fictional success fixture explicitly confirms
+its fake LINE revocation. RED1FAIL3.790s then full Person27PASS50.797s. Independent
+source ACCEPT received, no actual provider revocation inferred. Real intake-only
+factory three-provider PG regression1PASS1.252s proves receipt/fresh proof/blocking
+without review, jobs, sealed plans or execution. Rebuilt/installed shared: Mobile127,
+Web267,LINE26,notify11,broadcast28,shared-erasure244PASS. Backend focused21PASS.
+Seven owned Dart files formatted in official cached isolated Dart3.13.0; no WDAC
+bypass or local Flutter execution. New exact hosted candidate still required.
+
+Exactfc70f9b6395aa4c729888619698ba74b418bc2bd run40064866377 completed SUCCESS
+all16 jobs, including corrected Android matcher and PG15/16/native gates. Prior
+564 PG16 log reports1194 tests OK skipped2,267.083s; local full exit0 count remains
+unclaimed. These immutable runs do not prove the newer dirty runtime continuation.
+
+Provider research rejects an unnecessary assumption of long-lived Google/LINE
+refresh-token custody. Google native disconnect/access-token revoke exists; LINE
+requires deauthorize, not merely logout/revoke. Actual source still lacks that
+complete bounded adapter; no missing/unknown result is called revoked. Existing
+online/provider completion coupling needs a minimal stage-aware continuation,
+not a new generic workflow. Real cloud/custody/cost/provider/device gates remain.
+
+Latest uncommitted continuation: additive0023 private verified-retention completion
+and terminal180 minimal-evidence cleanup. Exact row permits, full stored postimage
+checks, bidirectional FK inventory, global unlinked irreversible flag; preserve
+authority operation/epoch/operator/time while removing only target linkage.
+No per-target purge tombstone; missing root remains unverifiable, not success or
+retry permission. Cancelled never-dispatched captured plans use the stronger
+terminal180+verified-backup gate. No grants, shared-key destruction or activation.
+Independent review initially REQUEST_CHANGES on four write-verification/catalogue
+defects; actual RED7 failures plus one FK fixture error preserved. Corrected
+13PG PASS4.918s. Main added real last-admin suspension/minimization regression;
+fixture order/timestamp errors corrected without weakening production guards.
+Latest focused15PG PASS5.799s includes14 cleanup tests and current metadata check,
+which reports no pending operations. Metadata4offline PASS. Independent source
+ACCEPT received (reviewer56offline PASS,38AST/diffPASS); Main shared242PASS,
+quality38PASS, readiness/harness75runOK skipped13. Exact23 Python
+compatibility retains historical22, unknown/multihead rejection and native guarded
+fixture downgrade. Whole candidate still awaits full/latest hosted CI.
+
+Google entry now propagates only explicit fresh port through captured actual root
+context; ordinary login is not fallback. Default entry/main remain unchanged.
+Four owned Dart files formatted in isolated cached official Dart3.13.0 container;
+Windows Application Control was not bypassed. Local Flutter remains unverified.
+
+Exact6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7 hosted run40062727377 completed
+SUCCESS/all16 jobs (including PG15/16, Flutter, unsigned iOS and fictional signing).
+Exact6e77 local freshPG16 full1178 run OK skipped2 (1176 passed),532.707s. These
+prove that immutable snapshot, not this dirty0023 continuation. New fullPG16 is
+running on fresh loopback55437; results must be recorded before claiming green.
+
+Fresh55437 full portal_data discover completed exit0 on the unchanged Python
+candidate committed as564712b231b199566dc62cbf130b3c7e857fbda7. Its final captured
+tail contains buffered fixture stdout instead of unittest summary; no numeric
+run/skip count is claimed for this run. Prior1178 count remains only6e77 evidence.
+Shared rebuilt/reinstalled offline; installed Mobile113/Web267/LINE26/notify11/
+broadcast28 PASS. No deployment artifact copy. Exact564 hosted40064421303 Android
+failed one new test matcher: intentional StateError is not Exception. Main changes
+only that expectation to throwsStateError; no product behavior or guard relaxed.
+Other564 gates must be observed separately, and corrected head requires new CI.
+Exact564 run40064421303 completed failure: all14 other jobs passed, including PG15/
+16 and both iOS gates; Android matcher failure caused final gate failure. This is
+not all-green. Same-PR one-line test correction will receive a fresh exact run.
+
+Runtime audit confirms Docker bootstrap does not inject AccountErasureService and
+main.dart does not enable entry. Apple has encrypted revocable credentials;
+Google/LINE fresh identity assertions alone are not revocable token custody.
+Internal review/operator composition, real custody/IAM/backup proof and bounded
+staging migration/deploy/Owner device acceptance remain. No secret payloads read,
+no cloud/provider/production/schema mutation, no runtime enablement/new fees.
+
+Continuation adds reviewed exact-version GCS purge port (not durable coordinator
+or all-copy absence), pure30/150/180 eligibility, additive0022 private backup
+observations/global day150 new-effect fence and operator-only online+30 exact
+sealed-plan purge. SQL permit/audit/delete are atomic, no shared-key deletion or
+job completion change. Minimal-ledger180 cleanup and actual operator/runtime
+assembly remain unfinished; do not deploy or call this readiness complete.
+Independent bounded source ACCEPTs received for GCS/policy/SQL/plan-purge;
+35 focused retention/PG/current-metadata tests PASS5.146s; 35 GCS tests PASS
+(4 actualPG+31offline). Original intake concurrency+fresh components/helper+
+initial retention selection51 PASS9.525s. These are not full latest-suite results.
+
+Exact96da hosted run40061434140: iOS unsigned archive and fictional signing PASS;
+Android format PASS but analyze one missing-braces lint failed; Quick expected
+Apple guard contract failed; PG15/16 both fail fixture drop_preflight +teardown,
+not product assertion. Main preserves the Apple guard and independent optional
+Google registration, fixes lint, adds exact backend(pid,backend_start) read-only
+close-drain before still-zero-session DROP. No FORCE/DDL retries.21 offline helper
+contracts PASS; actual focused concurrency selection above PASS. CI raw output did
+not contain connection identities, so the original root cause is not proven.
+New candidate on same PR271 must obtain hosted gates; old run is not green.
+
+New branch `codex/account-erasure-activation-readiness`, base
+`8d1f7d46997701021fa3152ba8d143f8ff885ffb`. This substantial continuation is
+not a claim that the previous source merge completed live deletion. Runtime/UI
+activation, provider/cloud/Secret/deployment/production writes remain absent.
+
+Implemented candidate: exact pending Apple/Google/LINE sealed capture/binding,
+preserving historical wire/hash domains; non-Apple credential absence is not
+silently confirmed by pending fulfillment. Additive0021 private continuity events
+preserve original requested/due/receipt/evidence metadata and same receipt UUID.
+SQL/Python readers validate the original-bound monotonic chain, including SQL
+fresh-attempt triggers. Operator extension is private and exact/idempotent;
+RLS-hidden or acknowledged evidence prevents native downgrade. Every caller must
+be compatible before enabling it. No new runtime role grant or key-retention proof.
+
+Google fresh-proof candidate uses official native per-request nonce APIs, not
+ordinary login assertions or reinitialization with a global nonce. Optional owner
+port stays null/default-off; server checks unchanged. Android unused client ID
+normalizes empty, preserving the ordinary platform contract. Direct iOS SDK9.2.0
+pin matches historical resolved evidence in TASK-200; it is not proof of a current
+lock/binary. Source reviews accepted the bounded pending/continuity/Google changes;
+live proof and native compilation are separate requirements.
+
+Evidence actually run:
+- Local PG16 pending fulfillment/plan suites48 PASS; continuity SQL/readers9 PASS,
+  including original-day181 receipt/cancellation and fresh job/intake attempts.
+- Affected seven legacy reader/intake/plan modules128 PASS before final SQL helper
+  additions; this is not evidence for the latest full candidate.
+- Shared erasure216, Mobile113, Web267, LINE26, notify11, broadcast28 PASS after
+  shared sdist rebuilt/installed. Python compileall PASS; quality42 owned Python
+  paths PASS; diff check PASS. Some later fixture-only edits separately formatted.
+- Windows Flutter execution blocked by Application Control; not RED/PASS. Same
+  Dart3.13.0 official Linux image, isolated/no-network, formatted six owned Dart
+  paths. No local Flutter analyze/test/native-build claim.
+- Full local PG first attempt had missing fixture environment and cascaded errors;
+  second ran1144 tests with6 errors (uninitialized shared base, one stale current
+  metadata head, four direct fixture-reuse target_provider errors), not green.
+  Fixed the head/fixture compatibility and launched exact CI setup on a new,
+  loopback-only disposable PG16 instance with all four required URLs:1150 run,
+  OK skipped2 (1148 passed),336.638s. This predates0022 and is not latest full proof.
+
+Read-only live inventory: exact staging GCP project/service is accessible and healthy;
+no re-login needed. Existing staging storage list contains only the Cloud Build
+bucket, not an independently isolated erasure custody/backup bucket. Exact optional
+custody project search returned no accessible resource (not proof of global absence).
+No secret payload, private input file or database row was read through that UI.
+No resources/settings changed. Planned asia-east1 storage is not covered by GCS
+Always Free's three US regions; zero incremental fee authority still blocks that
+new storage operation, not offline/source work. Official public-repository standard
+Actions runners are free; current repository is public and existing CI uses standard
+ubuntu/macos runners, no larger runner or new artifact-upload step.
+
+Remaining: controlled retention cleanup/150-day backup-unknown fence, actual provider
+and internal review/operator/runtime assembly, custody/key/restore validation,
+hosted native/PG evidence, staging migration/deploy/rollback and Owner device proof.
+Do not mark ready, merge as complete or activate based on this partial candidate.
+
+## Hosted acceptance and merge — 2026-10-20
+
+All16 checks passed on exacthead e26d1edf104ad77aaf328454fbefaaebc45a0292,
+run https://github.com/r06521541/NTUBTOB-management-system/actions/runs/39288894392 .
+Includes PG15/16 full selected job, Android, both iOS platform jobs, services,
+quality/quick/classifier and final gate. Earlier local cleanup timeout is retained
+below and not retrospectively reclassified as local success.
+PR270 ready then normal squash merge with --match-head-commit, no bypass;
+API confirms merge2026-10-20T01:03:30+08:00, SHA8d1f7d46997701021fa3152ba8d143f8ff885ffb.
+Post-merge main CI39290862387 targets that exact SHA, completed SUCCESS with all16
+jobs green (API verified2026-10-20); heartbeat task-203-ci PAUSED via automation tool.
+Main integration claim closed, all delegates released. No runtime activation/migration/deploy/real
+provider or Secret operation/new fees. Worktree remains task branch to preserve
+unrelated dirty changes. Post-merge status notes deferred to next substantive
+planning commit per no-status-only-PR rule.
+
 ## Authenticated integration / CI in progress — 2026-10-19
 
 ### Hosted failure correction — 2026-10-20

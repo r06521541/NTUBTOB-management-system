@@ -1605,6 +1605,12 @@ abstract interface class GoogleLoginPort {
   Future<void> logout();
 }
 
+/// Fresh proof only. Ordinary Google login cannot satisfy this nonce contract.
+abstract interface class GoogleFreshAuthorizationPort {
+  Future<String> authorize(String nonce,
+      {required void Function() beforePrompt});
+}
+
 abstract interface class AppleLoginPort {
   Future<String> login(String nonce);
   Future<AppleAuthorizationEnvelope> authorize(String nonce);

@@ -70,6 +70,10 @@ def require_account_not_erasing(
             ("0018_erasure_privacy_mutation",),
             ("0019_erasure_admin_recovery",),
             ("0020_erasure_intake",),
+            ("0021_erasure_continuity",),
+            ("0022_erasure_retention",),
+            ("0023_erasure_minimal_retention",),
+            ("0024_erasure_provider_phases",),
         ):
             raise ErasureGuardUnavailable("schema_not_ready")
         if (

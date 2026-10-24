@@ -43,6 +43,16 @@ STATUSES = (
 
 
 class ErasureReceiptTests(unittest.TestCase):
+    def test_continuity_integrity_failure_is_fixed_unavailable_not_expired(self):
+        with patch.object(
+            erasure_receipt,
+            "effective_expiry",
+            side_effect=erasure_receipt.ContinuityUnavailable("continuity_unavailable"),
+        ):
+            with self.assertRaises(ErasureReceiptUnavailable):
+                self.load()
+        self.session.commit.assert_not_called()
+
     def test_cancelled_receipt_requires_cancellation_revision(self):
         self.job["status"] = "cancelled"
         with self.assertRaises(ErasureReceiptUnavailable):
@@ -128,10 +138,13 @@ class ErasureReceiptTests(unittest.TestCase):
             {
                 "id",
                 "status",
+                "target_kind",
+                "expected_generation",
                 "requested_at",
                 "updated_at",
                 "receipt_secret_hash",
                 "receipt_expires_at",
+                "evidence_expires_at",
             },
         )
         self.assertNotIn("person", sql)

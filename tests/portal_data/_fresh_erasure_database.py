@@ -3,11 +3,17 @@
 Only generated, confirmed-created databases can be dropped. No force/retry or
 base-database DDL. Callers must inspect close() errors separately from test errors.
 Initialization callbacks are trusted and must close all connections they open.
+Callers must join workers before release. Closing a client socket need not remove
+its PostgreSQL backend immediately: only exact locally closed backend identities
+may drain with a five-second polling deadline (individual DB timeouts still apply).
+Other sessions reject immediately, without retrying any DDL.
 """
 
+from datetime import datetime
+from time import monotonic, sleep
 from uuid import uuid4
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 
 from shared_lib.shared_module.portal_data.local_database import (
@@ -32,6 +38,18 @@ class FreshDatabaseError(RuntimeError):
         self.__suppress_context__ = True
 
 
+def _backend_identity(row):
+    if (
+        len(row) != 2
+        or type(row[0]) is not int
+        or row[0] <= 0
+        or type(row[1]) is not datetime
+        or row[1].utcoffset() is None
+    ):
+        raise ValueError
+    return tuple(row)
+
+
 class FreshErasureDatabases:
     def __init__(self, base_url):
         try:
@@ -51,6 +69,7 @@ class FreshErasureDatabases:
         except Exception:
             raise FreshDatabaseError("admin_engine") from None
         self._owned = {}
+        self._closed_backends = {}
         self._attempted = set()
         self._errors = []
         self._template = None
@@ -77,6 +96,32 @@ class FreshErasureDatabases:
         except Exception:
             raise FreshDatabaseError("engine", name) from None
         self._owned[name] = engine
+        closed_backends = self._closed_backends[name] = set()
+
+        def connected(dbapi, record):
+            try:
+                # This is a new connection, before any fixture transaction. End
+                # our metadata read explicitly; never leave an idle transaction.
+                try:
+                    with dbapi.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT pg_backend_pid(), backend_start FROM "
+                            "pg_catalog.pg_stat_activity WHERE pid=pg_backend_pid()"
+                        )
+                        identity = _backend_identity(cursor.fetchone())
+                finally:
+                    dbapi.rollback()
+            except Exception:
+                raise FreshDatabaseError("connection_identity") from None
+            record.info["fresh_fixture_backend"] = identity
+
+        def closed(dbapi, record):
+            identity = record.info.pop("fresh_fixture_backend", None)
+            if identity is not None:
+                closed_backends.add(identity)
+
+        event.listen(engine, "connect", connected)
+        event.listen(engine, "close", closed)
         return name, engine
 
     def create_template(self, initialize):
@@ -125,33 +170,55 @@ class FreshErasureDatabases:
         self._attempted.add(name)  # No automatic resend after any cleanup uncertainty.
         if name == self._template:
             self._template = None
-        stage = "dispose"
+        stage = "connections_checked_out"
         try:
-            if self._owned[name] is not None:
-                self._owned[name].dispose()
+            engine = self._owned[name]
+            if engine is not None:
+                checked_out = engine.pool.checkedout()
+                if type(checked_out) is not int or checked_out != 0:
+                    raise ValueError
+            stage = "dispose"
+            if engine is not None:
+                engine.dispose()
+            # A caller's earlier explicit dispose is also supported. Retain the
+            # start timestamp: a later backend reusing the PID is never ours.
+            closing = frozenset(self._closed_backends.get(name, ()))
             stage = "drop_preflight"
             with self._admin.connect() as connection:
-                row = connection.execute(
-                    text(
-                        "SELECT pg_catalog.pg_get_userbyid(d.datdba)=CURRENT_USER, "
-                        "(SELECT count(*) FROM pg_catalog.pg_stat_activity a "
-                        "WHERE a.datid=d.oid) FROM pg_catalog.pg_database d "
-                        "WHERE d.datname=:name"
-                    ),
-                    {"name": name},
-                ).one_or_none()
-                if (
-                    row is None
-                    or len(row) != 2
-                    or row[0] is not True
-                    or type(row[1]) is not int
-                    or row[1] != 0
-                ):
-                    raise ValueError
+                deadline = monotonic() + 5
+                while True:
+                    rows = connection.execute(
+                        text(
+                            "SELECT pg_catalog.pg_get_userbyid(d.datdba)=CURRENT_USER, "
+                            "a.pid,a.backend_start FROM pg_catalog.pg_database d "
+                            "LEFT JOIN pg_catalog.pg_stat_activity a ON a.datid=d.oid "
+                            "WHERE d.datname=:name"
+                        ),
+                        {"name": name},
+                    ).all()
+                    if not rows or any(
+                        len(row) != 3 or row[0] is not True for row in rows
+                    ):
+                        raise ValueError
+                    if len(rows) == 1 and tuple(rows[0][1:]) == (None, None):
+                        break
+                    observed = {_backend_identity(row[1:]) for row in rows}
+                    if len(observed) != len(rows):
+                        raise ValueError
+                    if not observed <= closing:
+                        stage = "other_sessions"
+                        raise ValueError
+                    if monotonic() >= deadline:
+                        stage = "owned_close_timeout"
+                        raise ValueError
+                    # Never retry DROP. Recheck owner and exact zero sessions;
+                    # a reused PID with a different backend_start rejects above.
+                    sleep(0.05)
                 stage = "drop"
                 quote = self._admin.dialect.identifier_preparer.quote
                 connection.exec_driver_sql(f"DROP DATABASE {quote(name)}")
             del self._owned[name]
+            self._closed_backends.pop(name, None)
         except Exception:
             error = FreshDatabaseError(stage, name)
             self._errors.append(error)

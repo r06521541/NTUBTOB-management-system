@@ -451,6 +451,16 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("AppleAuthorizationBridge.register(with: appleRegistrar)", source)
         self.assertNotIn('registrar(forPlugin: "AppleAuthorizationBridge")!', source)
 
+    def test_google_bridge_registration_is_optional_and_independent_of_apple(self):
+        source = IOS_APP_DELEGATE.read_text(encoding="utf-8")
+        self.assertIn("if let googleRegistrar", source)
+        registration = "GoogleAuthorizationBridge.register(with: googleRegistrar)"
+        self.assertIn(registration, source)
+        self.assertLess(
+            source.index(registration), source.index("guard let appleRegistrar")
+        )
+        self.assertNotIn('registrar(forPlugin: "GoogleAuthorizationBridge")!', source)
+
     def test_python_workflow_calls_flutter_conditionally(self):
         block = job_block(self.source, "flutter")
         self.assertIn("needs: classify", block)

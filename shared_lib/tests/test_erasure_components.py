@@ -3,7 +3,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 from shared_module.erasure_restore_binding import RestoreBindingCodec
-from shared_module.portal_data.erasure_components import build_erasure_components
+from shared_module.portal_data.erasure_components import (
+    build_erasure_components,
+    build_erasure_intake_service,
+)
 from shared_module.portal_data.erasure_composition import TrustedErasurePlanBuilder
 from shared_module.portal_data.erasure_plan_codec import ErasurePlanCodec
 from sqlalchemy import create_engine
@@ -106,6 +109,79 @@ class ErasureComponentsTests(unittest.TestCase):
             with self.subTest(changes=tuple(changes)):
                 with self.assertRaisesRegex(ValueError, "^invalid_erasure_components$"):
                     build_erasure_components(**{**self.args, **changes})
+        self.connect.assert_not_called()
+
+    def test_intake_only_service_never_constructs_execution_or_custody_components(self):
+        forbidden = (
+            "ErasurePlanStore",
+            "PendingIdentityFulfillment",
+            "PersonFulfillment",
+            "ErasureIntakeMaterializer",
+            "AccountErasureRequestRepository",
+            "RestrictedErasureRequestRepository",
+        )
+        patches = [
+            patch(
+                "shared_module.portal_data.erasure_components." + name,
+                side_effect=AssertionError("not intake"),
+            )
+            for name in forbidden
+        ]
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+        args = {
+            name: self.args[name]
+            for name in (
+                "engine",
+                "receipt_key",
+                "proof_key",
+                "audience",
+                "proof_lifetime",
+                "providers",
+                "clock",
+            )
+        }
+        service = build_erasure_intake_service(**args)
+        self.assertIs(service.repository, service.restricted_repository)
+        self.assertIs(service.repository.engine, self.engine)
+        self.assertEqual(service.recovery_repository._key, b"R" * 32)
+        policy = service.repository.policy_source(
+            requested_at=self.clock(), connection=Mock()
+        )
+        self.assertEqual(policy.fulfillment_due_at, self.clock() + timedelta(days=30))
+        self.assertEqual(policy.receipt_expires_at, self.clock() + timedelta(days=180))
+        self.assertEqual(policy.evidence_expires_at, policy.receipt_expires_at)
+        self.review.assert_not_called()
+        self.policy.assert_not_called()
+        self.connect.assert_not_called()
+        self.provider.verify.assert_not_called()
+
+    def test_intake_only_factory_preserves_key_and_engine_validation(self):
+        args = {
+            name: self.args[name]
+            for name in (
+                "engine",
+                "receipt_key",
+                "proof_key",
+                "audience",
+                "proof_lifetime",
+                "providers",
+                "clock",
+            )
+        }
+        for changes in (
+            {"engine": Mock()},
+            {"receipt_key": b"P" * 32},
+            {"proof_key": b"short"},
+            {"providers": {}},
+            {"clock": None},
+        ):
+            with (
+                self.subTest(fields=tuple(changes)),
+                self.assertRaisesRegex(ValueError, "^invalid_erasure_components$"),
+            ):
+                build_erasure_intake_service(**{**args, **changes})
         self.connect.assert_not_called()
 
 

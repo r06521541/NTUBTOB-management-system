@@ -6,7 +6,7 @@ may accompany markers 0013/0014. Validate both inventories before any mutation.
 Retained 0016 requires both nullable timestamp columns and the 0015 inventory.
 Partial inventory, older marker with retained objects, or unknown revision fails
 closed. This destructive fixture rewind is never a production downgrade.
-Exact 0019/0020 first use their native empty-only downgrade, in this same
+Exact 0019 through 0023 first use their native guarded downgrade, in this same
 transaction. Retained intake, attempt or suspension evidence must prevent cleanup.
 """
 
@@ -30,7 +30,14 @@ CANCELLATION_REVISION = "0016_erasure_cancellation"
 ITEM_REVISION = "0017_erasure_work_items"
 PRIVACY_REVISION = "0018_erasure_privacy_mutation"
 NATIVE_EMPTY_ONLY_REVISIONS = frozenset(
-    {"0019_erasure_admin_recovery", "0020_erasure_intake"}
+    {
+        "0019_erasure_admin_recovery",
+        "0020_erasure_intake",
+        "0021_erasure_continuity",
+        "0022_erasure_retention",
+        "0023_erasure_minimal_retention",
+        "0024_erasure_provider_phases",
+    }
 )
 ITEM_OBJECTS = frozenset(
     {
@@ -580,8 +587,8 @@ def remove_retained_erasure_ledger_from_isolated_test_database(engine) -> None:
                     str(Path(__file__).resolve().parents[2] / "alembic.ini")
                 )
                 config.attributes["connection"] = connection
-                # Native0020/0019 own the empty/history/RLS checks. Do not replace
-                # them with fixture DROP statements or manually rewrite markers.
+                # Native0023 through0019 own irreversible/history/RLS checks.
+                # Never replace them with fixture DROP or marker rewrites.
                 command.downgrade(config, PRIVACY_REVISION)
                 revisions = tuple(
                     connection.scalars(

@@ -544,3 +544,11 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Same native versions as the locked google_sign_in_android 7.2.16 plugin.
+// Direct app visibility for the public per-request nonce API; no SDK upgrade.
+dependencies {
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
+}

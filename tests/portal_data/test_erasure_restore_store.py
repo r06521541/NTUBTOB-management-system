@@ -3,15 +3,22 @@
 import unittest
 from unittest.mock import Mock
 
+import httplib2
+from googleapiclient.errors import HttpError
 from sqlalchemy import text
 
 from shared_lib.shared_module.portal_data.erasure_fulfillment import (
     PendingRestoreRecord,
 )
 from shared_lib.shared_module.portal_data.erasure_restore_store import (
+    GcsErasureRestorePurger,
     GcsErasureRestoreStore,
 )
-from shared_lib.tests.test_erasure_restore_store import BUCKET, NAMESPACE, FakeObjects
+from shared_lib.tests.test_erasure_restore_store import (
+    BUCKET,
+    NAMESPACE,
+    FakePurgeObjects,
+)
 from tests.portal_data import test_erasure_fulfillment as fulfillment
 
 
@@ -23,7 +30,7 @@ class RestoreStorePostgresTests(unittest.TestCase):
         self.fixture = fulfillment.PendingFulfillmentPostgresTests("runTest")
         self.addCleanup(self.fixture.doCleanups)
         self.fixture.setUp()
-        self.objects = FakeObjects()
+        self.objects = FakePurgeObjects()
         self.client = Mock()
         self.client.objects.return_value = self.objects
         self.fixture.executor.restore_store = self.new_store()
@@ -131,3 +138,54 @@ class RestoreStorePostgresTests(unittest.TestCase):
         item_id = self.objects.metadata["name"].rsplit("/", 1)[1][:-5]
         self.assertEqual(self.new_store().read(item_id).job_id, self.fixture.job_id)
         self.assertEqual(self.restore_events()[-1], ("unknown", "response_unknown"))
+
+    def test_versioned_custody_purge_ack_does_not_change_ledger_or_claim_policy_completion(
+        self,
+    ):
+        self.assertEqual(self.fixture.execute().classification, "confirmed")
+        events = self.restore_events()
+        item_id = self.objects.metadata["name"].rsplit("/", 1)[1][:-5]
+        versioned = self.new_store().read_versioned(item_id)
+        self.assertEqual(versioned.record.job_id, self.fixture.job_id)
+        # A separately supplied private client is not the custody writer's client.
+        private_client = Mock()
+        private_client.objects.return_value = self.objects
+        purger = GcsErasureRestorePurger(
+            client=private_client, bucket=BUCKET, namespace=NAMESPACE
+        )
+        result = purger.purge(versioned.version)
+        self.assertEqual(result.classification, "active_version_removed")
+        self.assertEqual(result.next_action, "read_only_version_review")
+        self.assertEqual(self.objects.deletes[0]["ifGenerationMatch"], "7")
+        self.assertNotIn("generation", self.objects.deletes[0])
+        self.assertEqual(self.restore_events(), events)
+        self.assertEqual(purger.purge(versioned.version), result)
+        self.assertEqual(len(self.objects.deletes), 1)
+
+    def test_purge_lost_ack_readonly_version_missing_preserves_unknown_and_ledger(self):
+        self.assertEqual(self.fixture.execute().classification, "confirmed")
+        events = self.restore_events()
+        item_id = self.objects.metadata["name"].rsplit("/", 1)[1][:-5]
+        version = self.new_store().read_versioned(item_id).version
+        private_client = Mock()
+        private_client.objects.return_value = self.objects
+        purger = GcsErasureRestorePurger(
+            client=private_client, bucket=BUCKET, namespace=NAMESPACE
+        )
+        self.objects.after_delete = lambda: setattr(
+            self.objects,
+            "metadata_error",
+            HttpError(
+                httplib2.Response({"status": "404"}), b"fictional missing version"
+            ),
+        )
+        self.objects.delete_error = TimeoutError("fictional lost delete response")
+        unknown = purger.purge(version)
+        self.assertEqual(unknown.classification, "delete_outcome_unknown")
+        self.assertTrue(unknown.delete_dispatched)
+        self.assertEqual(
+            purger.read_version_presence(version).classification, "version_not_found"
+        )
+        self.assertEqual(purger.purge(version), unknown)
+        self.assertEqual(len(self.objects.deletes), 1)
+        self.assertEqual(self.restore_events(), events)

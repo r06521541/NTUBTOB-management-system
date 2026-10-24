@@ -63,7 +63,14 @@ def _state(connection):
     acquire_admin_event_locks(connection)
     if tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
-    ) not in ((REVISION,), ("0020_erasure_intake",)):
+    ) not in (
+        (REVISION,),
+        ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
+        ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
+    ):
         _unavailable("schema_not_ready")
     for table in (
         "portal_authority_state",
