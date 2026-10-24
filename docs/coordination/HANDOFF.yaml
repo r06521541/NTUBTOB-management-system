@@ -17,7 +17,12 @@ note: >
   remote6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7 run40062727377 SUCCESS all16;
   old96da run40061434140 failed quick/lint/PG fixture, not green. Current local
   full PG fresh55436 finished1178 OK skipped2. New0023 full fresh55437 session25204
-  running; do not mutate its source snapshot. Focused15PG PASS/currentmetadata
+  finished exit0 on564712b231b199566dc62cbf130b3c7e857fbda7 Python; numeric unittest
+  summary was displaced by buffered fixture stdout, do not invent count.
+  Exact564 hosted40064421303 Android failed new StateError/Exception test matcher;
+  Main one-line throwsStateError correction pending samePR push/hosted. Other
+  gates all14 passed including PG15/16 and both iOS; final gate failed because of
+  Android. Run completed failure, not all-green. Focused15PG PASS/currentmetadata
   no pending operations; shared242PASS, quality38PASS. Independent0023 source
   ACCEPT received/released; all delegates frozen/released, no active roles.
   Local corrections plus additive0022

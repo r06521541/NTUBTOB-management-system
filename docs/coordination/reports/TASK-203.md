@@ -31,6 +31,19 @@ Exact6e77 local freshPG16 full1178 run OK skipped2 (1176 passed),532.707s. These
 prove that immutable snapshot, not this dirty0023 continuation. New fullPG16 is
 running on fresh loopback55437; results must be recorded before claiming green.
 
+Fresh55437 full portal_data discover completed exit0 on the unchanged Python
+candidate committed as564712b231b199566dc62cbf130b3c7e857fbda7. Its final captured
+tail contains buffered fixture stdout instead of unittest summary; no numeric
+run/skip count is claimed for this run. Prior1178 count remains only6e77 evidence.
+Shared rebuilt/reinstalled offline; installed Mobile113/Web267/LINE26/notify11/
+broadcast28 PASS. No deployment artifact copy. Exact564 hosted40064421303 Android
+failed one new test matcher: intentional StateError is not Exception. Main changes
+only that expectation to throwsStateError; no product behavior or guard relaxed.
+Other564 gates must be observed separately, and corrected head requires new CI.
+Exact564 run40064421303 completed failure: all14 other jobs passed, including PG15/
+16 and both iOS gates; Android matcher failure caused final gate failure. This is
+not all-green. Same-PR one-line test correction will receive a fresh exact run.
+
 Runtime audit confirms Docker bootstrap does not inject AccountErasureService and
 main.dart does not enable entry. Apple has encrypted revocable credentials;
 Google/LINE fresh identity assertions alone are not revocable token custody.

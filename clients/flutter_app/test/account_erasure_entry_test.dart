@@ -132,7 +132,7 @@ void main() {
       ),
       requireCurrent: () => throw StateError('fictional stale context'),
     );
-    expect(context.createOwner, throwsException);
+    expect(context.createOwner, throwsStateError);
     expect(store.reads, 0);
     expect(store.writes, 0);
     expect(ports.nonces, isEmpty);
