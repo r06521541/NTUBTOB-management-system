@@ -2,6 +2,48 @@
 
 ## Activation-readiness candidate — 2026-10-24 (not enabled)
 
+### Pending cost decision (not authority)
+
+Official rendered pricing rechecked2026-10-24, Taiwan(asia-east1), monthly radio:
+Standard regional flat namespace USD0.02/GiB-month; ClassA USD0.005/1000,
+ClassB USD0.0004/1000. General egress to Taiwan USD0.12/GiB at first tier;
+same-region GCP transfer free, not Supabase/external transfer. AlwaysFree excludes
+Taiwan. Browser pricing selections only, no resource/billing mutation.
+Secret Manager five single-location versions at USD0.06 each means USD0.30/month
+if existing shared free quota consumed; enabled AND disabled count. First10000
+accesses free per billing account; conservatively allow USD0.03/10000 if consumed.
+
+Planning envelope (not measured current DB size): combined active/noncurrent/soft
+deleted storage <=1GiB-month, <=1000 A, <=10000 B, <=10000 secret reads and <=1GiB
+external egress gives 0.02+0.005+0.004+0.30+0.03+0.12=USD0.479/month before tax/FX.
+Do not present this component subtotal as all-in rollout pricing: current DB backup
+size, CloudBuild/ArtifactRegistry/CloudRun existing quotas and inherited IAM remain
+unverified. No PITR/paid DB/VM/SaaS. Prefer current project, exact approved Taiwan
+buckets and existing API; no region change or general infrastructure expansion.
+
+Suggested future authority, if Owner chooses paid path: one-off rollout budget
+USD5 plus ongoing USD1/month for this bounded staging custody/key use, subject to
+fresh measured inventory and priced operations fitting BEFORE dispatch. This is
+a proposed budget, not permission or a provider-enforced hardcap. Unknown/exceeding
+estimate still stops that operation; never destroy necessary evidence to meet it.
+Alternative keep incremental0: keep feature off and retain source/CI readiness;
+reusing CloudBuild bucket weakens isolation, US region changes approved locality
+and still does not prove free account-wide quota. Neither is an automatic fallback.
+Primary sources: https://cloud.google.com/storage/pricing and
+https://cloud.google.com/secret-manager/pricing . Existing zero authority unchanged.
+
+Exact28e8ead4115f25766f810d000ce928b926935d74 full localPG16 finished:
+1216 tests run OK/skipped2 (1214 passed),350.186s. All four local fixture URL
+variables bound to owned localhost55438; native bootstrap/head24 then discover
+tests/portal_data, unbuffered Python preserved numeric summary. Shared-erasure
+245PASS0.647s. Same exact hosted40066777010 Android format/analyze PASS,
+582tests PASS/2FAIL: lost-response false/true cases both expect old online wording
+at composition_test:93. Main changes only that literal to actual new wording;
+independent source ACCEPT received/released, existing no-full-completion/no-secret/
+no-double-verification assertions retained. Hosted40066777010 completed FAILURE:
+all14 other jobs PASS including PG15/16 and both iOS; final gate failed due Android
+tests only. Corrected samePR exact candidate still needs observation. No guard relaxation.
+
 Current0024 source checkpoint: exact revision separates verified local cleanup
 from provider/backup closure. Unresolved provider no longer retains the local
 account after every nonprovider item and restore suppression are confirmed;
@@ -35,8 +77,8 @@ Remaining live gate is unchanged zero-incremental-fee authority: observed stagin
 has no isolated erasure/backup bucket. Taiwan GCS is outside Always Free regions;
 five new single-location Secret versions could cost USD0.30/month if existing
 billing-account free quota is consumed, before storage/operations/transfer.
-Account-wide quota/Taiwan dynamic SKU rates not verified; no all-in estimate or
-zero-cost promise. No bucket/key/IAM/provider/deploy mutation performed. Actual
+Account-wide quotas not verified; Taiwan component rates now verified above,
+not an all-in quote or zero-cost promise. No bucket/key/IAM/provider/deploy mutation performed. Actual
 review/operator/custody/backup proof and provider-specific bounded adapters still
 need integration before real account handling, never infer readiness from CI.
 Sources rechecked2026-10-24: https://cloud.google.com/storage/pricing and

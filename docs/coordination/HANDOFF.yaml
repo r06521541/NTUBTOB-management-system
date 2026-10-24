@@ -11,23 +11,28 @@ review: docs/coordination/reviews/TASK-203.md
 note: >
   Main task203-activation-readiness lease1; same branch
   codex/account-erasure-activation-readiness, unique DraftPR271.
-  Current pushed d64ebcfbeba81bf18e6a966483435e16cf7e7318 hosted40065730871
-  FAILURE: PG15/16/services PASS; Android constructor-tearoff analyze failure,
-  iOS unsigned DevelopmentTeam/Provisioning message. Main corrected constructor
-  without changing signing; corrected exact candidate still needs hosted evidence.
+  Current pushed28e8ead4115f25766f810d000ce928b926935d74 hosted40066777010:
+  Android format/analyze PASS,582tests PASS/2FAIL from the same old composition
+  wording; one-line correction independently reviewed, no guard relaxation.
+  Run completed FAILURE: all14 other jobs PASS including PG15/16 and both iOS;
+  final gate fails only because Android tests failed. Main now pushes reviewed
+  one-line correction on samePR, no cancellation or unchanged retry.
   New0024 separates local/provider/backup completion; three genuine PG RED defects
   corrected, frozen18PG PASS10.508s. Independent phase/compat and three-Dart-source
   ACCEPTs received/handled; all delegated claims complete/released, no active agent.
-  Thirtyseven Python quality PASS, installed shared rebuilt and Mobile127/Web267/
-  LINE26/notify11/broadcast28 PASS. Full localPG16 localhost55438 session63458
-  running, not yet green. Retained failed historical fixture55435 stays untouched;
+  Thirtyseven Python quality PASS, shared-erasure245PASS; installed shared rebuilt
+  and Mobile127/Web267/LINE26/notify11/broadcast28 PASS. Full localPG16 localhost55438
+  finished1216run OK skipped2,350.186s. Four owned test containers stopped, data
+  retained. Retained failed historical fixture55435 stays untouched;
   newphase tests use exact-owned disposable clones, no weakened downgrade/trigger.
-  Main must follow fullPG and corrected hosted result, preserve any failure and
+  Main must follow corrected hosted result, preserve any failure and
   finish samePR only; do not open another delivery or merge as live-ready.
   Flags default-off. Actual provider adapters/internal operator/custody/backup
   integration and live acceptance remain. Zero incremental fee authority:
   staging has no isolated erasure/backup bucket; Taiwan storage not AlwaysFree,
-  account-wide Secret quota unknown. Do not create/bill/deploy before applicable
+  account-wide Secret quota unknown. Official Taiwan0.02/GiB-month and component
+  estimate/proposed paid budget recorded report, NOT Owner-approved authority.
+  Do not create/bill/deploy before applicable
   cost/isolation gates. No production/cloud/Secret/provider/realaccount writes.
   Preserve TASK201/SSD recovery/environment/launcher/privacy draft/old review/
   PROJECT_STATE and untracked archive dirty. Current tests/report contain exact
