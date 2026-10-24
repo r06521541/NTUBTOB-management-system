@@ -12,6 +12,7 @@ from shared_lib.shared_module.portal_data import (  # noqa: F401
     erasure_item_models,
     erasure_models,
     erasure_recovery_models,
+    erasure_retention_models,
 )
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,

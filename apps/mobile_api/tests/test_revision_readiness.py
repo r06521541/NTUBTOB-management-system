@@ -65,6 +65,7 @@ class RevisionReadinessTest(unittest.TestCase):
                 "0019_erasure_admin_recovery",
                 "0020_erasure_intake",
                 "0021_erasure_continuity",
+                "0022_erasure_retention",
             ),
         )
 

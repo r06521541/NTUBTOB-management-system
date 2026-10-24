@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class MigrationReadinessStaticTests(unittest.TestCase):
     def test_revision_chain_is_single_and_exact(self):
         self.assertEqual(revision_chain(), EXPECTED_REVISIONS)
-        self.assertEqual(EXPECTED_REVISIONS[-1], "0021_erasure_continuity")
+        self.assertEqual(EXPECTED_REVISIONS[-1], "0022_erasure_retention")
 
     def test_historical_suites_pin_owned_revisions_and_current_suite_owns_head(self):
         historical_suites = (

@@ -19,6 +19,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from ..mobile_api import utc_now
+from .erasure_retention import retention_failure_reason
 from .runtime import acquire_admin_event_locks
 
 
@@ -82,6 +83,7 @@ def _connection(session):
         ("0019_erasure_admin_recovery",),
         ("0020_erasure_intake",),
         ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
     ):
         raise _Rejected("schema_not_ready")
     for table in (
@@ -240,7 +242,9 @@ class ProviderErasureExecutor:
                 stage = "fence_commit"
         except _Rejected as error:
             return ProviderExecutionResult("not_dispatched", stage, str(error))
-        except Exception:
+        except Exception as error:
+            if reason := retention_failure_reason(error):
+                return ProviderExecutionResult("not_dispatched", stage, reason)
             return ProviderExecutionResult("not_dispatched", stage, "fence_unconfirmed")
 
         # No Session/transaction is live while contacting the provider.

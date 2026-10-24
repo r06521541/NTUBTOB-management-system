@@ -33,8 +33,9 @@ class GoogleErasureFreshProvider extends _NonceErasureProvider {
             'google',
             (nonce) => google.authorize(nonce, beforePrompt: () {
                   requireCurrent();
-                  if (!isOnline())
+                  if (!isOnline()) {
                     throw const ErasureFreshProviderUnavailable();
+                  }
                 }),
             requireCurrent,
             isOnline);

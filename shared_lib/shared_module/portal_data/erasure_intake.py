@@ -48,7 +48,7 @@ def _intake_connection(session):
     connection = _connection(session)
     if tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
-    ) not in {(REVISION,), ("0021_erasure_continuity",)}:
+    ) not in {(REVISION,), ("0021_erasure_continuity",), ("0022_erasure_retention",)}:
         raise ErasureRequestUnavailable("intake_schema_not_ready")
     unfiltered(connection)
     unfiltered(connection, "account_erasure_intake_attempts")

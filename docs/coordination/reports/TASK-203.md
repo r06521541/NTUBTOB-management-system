@@ -2,6 +2,27 @@
 
 ## Activation-readiness candidate — 2026-10-24 (not enabled)
 
+Continuation adds reviewed exact-version GCS purge port (not durable coordinator
+or all-copy absence), pure30/150/180 eligibility, additive0022 private backup
+observations/global day150 new-effect fence and operator-only online+30 exact
+sealed-plan purge. SQL permit/audit/delete are atomic, no shared-key deletion or
+job completion change. Minimal-ledger180 cleanup and actual operator/runtime
+assembly remain unfinished; do not deploy or call this readiness complete.
+Independent bounded source ACCEPTs received for GCS/policy/SQL/plan-purge;
+35 focused retention/PG/current-metadata tests PASS5.146s; 35 GCS tests PASS
+(4 actualPG+31offline). Original intake concurrency+fresh components/helper+
+initial retention selection51 PASS9.525s. These are not full latest-suite results.
+
+Exact96da hosted run40061434140: iOS unsigned archive and fictional signing PASS;
+Android format PASS but analyze one missing-braces lint failed; Quick expected
+Apple guard contract failed; PG15/16 both fail fixture drop_preflight +teardown,
+not product assertion. Main preserves the Apple guard and independent optional
+Google registration, fixes lint, adds exact backend(pid,backend_start) read-only
+close-drain before still-zero-session DROP. No FORCE/DDL retries.21 offline helper
+contracts PASS; actual focused concurrency selection above PASS. CI raw output did
+not contain connection identities, so the original root cause is not proven.
+New candidate on same PR271 must obtain hosted gates; old run is not green.
+
 New branch `codex/account-erasure-activation-readiness`, base
 `8d1f7d46997701021fa3152ba8d143f8ff885ffb`. This substantial continuation is
 not a claim that the previous source merge completed live deletion. Runtime/UI
@@ -39,7 +60,8 @@ Evidence actually run:
   second ran1144 tests with6 errors (uninitialized shared base, one stale current
   metadata head, four direct fixture-reuse target_provider errors), not green.
   Fixed the head/fixture compatibility and launched exact CI setup on a new,
-  loopback-only disposable PG16 instance with all four required URLs. Result pending.
+  loopback-only disposable PG16 instance with all four required URLs:1150 run,
+  OK skipped2 (1148 passed),336.638s. This predates0022 and is not latest full proof.
 
 Read-only live inventory: exact staging GCP project/service is accessible and healthy;
 no re-login needed. Existing staging storage list contains only the Cloud Build

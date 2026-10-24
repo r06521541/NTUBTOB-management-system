@@ -2,6 +2,93 @@
 
 ## Activation readiness continuation — 2026-10-24
 
+Retention execution checkpoint (Main, no delegate ownership):
+1. Goal: executable approved30/150/180 eligibility, then private SQL controls;
+   this is still source preparation, never proof of live backup inventory.
+2. Core: new erasure_retention policy/tests, additive candidate migration only
+   after eligibility regressions; do not alter immutable candidate0021.
+3. Invariant: unfinished/unknown never purge, no expiry-as-deletion, no automatic
+   retry or shared-key destruction; restore copies/key horizon explicitly checked.
+4. Tests: RED/GREEN exact boundary/stale/unknown facts, then rollback-only true PG
+   for ACL/fence/purge; independent review before final gate.
+5. No new policy/fees/runtime grant; real custody inventory and zero-fee check
+   remain required before external writes. Preserve unrelated dirty paths.
+
+Pure-policy review task203-retention-policy-review lease1 received/handled ACCEPT,
+then released; 13 focused tests PASS, not SQL/custody/global enforcement proof.
+Main next owns additive0022 backup-check evidence/global new-start backstop.
+Exact private operator records bind request/gen/original receipt + inventory digest;
+runtime cannot forge by table INSERT/GUC. A future known horizon is not absence.
+New starts check every retained request; existing result/reconcile and receipt/
+intake remain usable. No grants or cleanup authority follows from this first seam.
+
+Advisor packet: task=TASK-203; actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-retention-sql-review; lease_version=1; owned_paths=none;
+branch=codex/account-erasure-activation-readiness;
+base=head=96da843b9f1bdf1452c64dc44f8896d78638f911; report_to=/root;
+write=read-only; scope=dirty0022 migration, retention models/PG tests and exact22
+revision compatibility changes; global day150 starts including unrelated jobs,
+private backup-check record/replay/ACL/RLS, continuity/recovery marker upgrade,
+empty-only downgrade. No purge/runtime/live acceptance claimed. Ten rollback-only
+PG tests PASS before compatibility expansion, not full-suite evidence. Read only,
+no DB/network/secrets/Git mutation/fees. ACK/heartbeat10–15min/blocker immediately,
+proactive verdict/findings/tests/limits/paths to /root, then freeze.
+
+SQL day150-only review ACCEPT received/handled/released. Main subsequently adds
+private exact one-row sealed-plan purge to uncommitted0022; this addition is NOT
+covered by that earlier acceptance. New advisor packet same boundaries/transport:
+actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-private-plan-purge-review; lease_version=1; owned_paths=none;
+base=head=96da843b9f1bdf1452c64dc44f8896d78638f911; report_to=/root.
+Scope=0022 private permit/row-delete guard/purge+replay/empty-only downgrade,
+retention models/PG tests and fixed diagnostic mapping in six existing executors.
+No shared-key deletion, online status/receipt changes or complete-retention claims.
+Only plan SQL source acceptance requested; no DB/network/Secret/Git mutation.
+
+Private-plan-purge ACCEPT received/handled/released;35 focused retention/PG/
+current-metadata PASS (last2 strengthened cases included after memoryview assertion
+correction). Fixture writer frozen received/handled/released; Main independently
+reviewed exact backend-start/zero-session/one-DROP controls and ran51 focused
+original race+fresh components/helper+initial retention cases PASS. No delegate
+still running. All current changes remain same readiness delivery/PR271.
+
+GCS writer claim task203-gcs-version-cleanup lease1 completed/frozen/released;
+independent task203-gcs-purge-review lease1 ACCEPT bounded source received/handled,
+then released. Main owns three paths and actual PG validation. No live cleanup claim.
+New writer packet: task=TASK-203; actor_id=/root/privacy_foundation;
+role=codex-writer; claim_id=task203-ci-fixture-cleanup; lease_version=1;
+branch=codex/account-erasure-activation-readiness;
+base=head=96da843b9f1bdf1452c64dc44f8896d78638f911; report_to=/root;
+owned_paths=tests/portal_data/test_erasure_intake.py,
+tests/portal_data/_fresh_erasure_database.py,tests/portal_data/test_fresh_erasure_database.py;
+write=allowed; scope=deterministic owned fixture/session/thread cleanup for CI
+cancel/materialization race; preserve active-session/drop preflight, no FORCE,
+blind retry or timeout-only fix. Offline regression first; no DB/network/Secret/
+Git/cloud mutation/fees. ACK immediately, heartbeat10–15min, blocker immediately,
+proactive completion with SHA/dirty paths/tests/findings/limits/external mutations
+to /root, then freeze. Main serializes actual PG. Other dirty preserved.
+
+First candidate committed/pushed96da843b9f1bdf1452c64dc44f8896d78638f911;
+unique Draft PR271 exists only for hosted/native evidence, not ready/merge/enable.
+Exact fresh local PG16 CI setup run1150 tests, OK skipped2 (1148 passed); previous
+failed rounds remain reported. Continue retention/runtime closure on same branch.
+Retention design received/handled/released, no new policy required for approved
+30/150/180. Main will own SQL/Python retention; separate bounded GCS adapter writer:
+task=TASK-203; actor_id=/root/privacy_foundation; role=codex-writer;
+claim_id=task203-gcs-version-cleanup; lease_version=1;
+branch=codex/account-erasure-activation-readiness;
+base=head=96da843b9f1bdf1452c64dc44f8896d78638f911; report_to=/root;
+owned_paths=shared_lib/shared_module/portal_data/erasure_restore_store.py,
+shared_lib/tests/test_erasure_restore_store.py,tests/portal_data/test_erasure_restore_store.py;
+write=allowed; scope=version-bound read handle plus separate private GCS purge
+adapter using exact UUID-derived object and generation precondition. Never add
+delete to ordinary custody-writer authority; no arbitrary path/list/overwrite/
+implicit retries. Ack only removes exact active version, NOT soft-delete/all
+backups/policy completion. Unknown must retain prior facts/read-only next action;
+404/412 cannot prove all copies absent. Fictional offline tests only; no real
+SDK I/O/network/DB/Secret/Git mutation/fees. Other stop/report rules common packet.
+Capture existing behavior before edits, freeze after tests/completion to Main.
+
 Google native source review ACCEPT received/handled/released; historical resolved
 SDK9.2.0 evidence TASK-200 report127–135 closes dependency-scope hold, NOT a claim
 of current lock/binary. Main formatted six Dart paths using official Linux Dart

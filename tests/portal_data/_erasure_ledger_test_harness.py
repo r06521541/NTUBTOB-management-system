@@ -30,7 +30,12 @@ CANCELLATION_REVISION = "0016_erasure_cancellation"
 ITEM_REVISION = "0017_erasure_work_items"
 PRIVACY_REVISION = "0018_erasure_privacy_mutation"
 NATIVE_EMPTY_ONLY_REVISIONS = frozenset(
-    {"0019_erasure_admin_recovery", "0020_erasure_intake", "0021_erasure_continuity"}
+    {
+        "0019_erasure_admin_recovery",
+        "0020_erasure_intake",
+        "0021_erasure_continuity",
+        "0022_erasure_retention",
+    }
 )
 ITEM_OBJECTS = frozenset(
     {

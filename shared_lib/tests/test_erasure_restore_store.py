@@ -17,7 +17,9 @@ from shared_module.erasure_restore_binding import RestoreBinding
 from shared_module.portal_data.erasure_fulfillment import PendingRestoreRecord
 from shared_module.portal_data.erasure_person_fulfillment import PersonRestoreRecord
 from shared_module.portal_data.erasure_restore_store import (
+    GcsErasureRestorePurger,
     GcsErasureRestoreStore,
+    RestoreObjectVersion,
     RestoreStoreRejected,
     RestoreStoreUnavailable,
 )
@@ -494,6 +496,293 @@ class RestoreStoreTests(unittest.TestCase):
         )
         self.assertEqual(self.objects.metadata_request.retries, [0])
         self.assertEqual(self.objects.media_gets, [])
+
+
+class FakePurgeObjects(FakeObjects):
+    """No real storage: deletion can fail before or after the fictional effect."""
+
+    def __init__(self):
+        super().__init__()
+        self.deletes = []
+        self.delete_error = None
+        self.delete_reply = ""
+        self.after_delete = None
+
+    def delete(self, **kwargs):
+        self.deletes.append(kwargs)
+
+        def remove():
+            if self.after_delete is not None:
+                self.after_delete()
+            if self.delete_error is not None:
+                raise self.delete_error
+            return self.delete_reply
+
+        self.delete_request = FakeExecute(remove)
+        return self.delete_request
+
+
+class RestoreVersionTests(unittest.TestCase):
+    def setUp(self):
+        self.objects = FakePurgeObjects()
+        self.client = Mock()
+        self.client.objects.return_value = self.objects
+        self.store = GcsErasureRestoreStore(
+            client=self.client, bucket=BUCKET, namespace=NAMESPACE
+        )
+        self.purger = self.new_purger()
+
+    def new_purger(self):
+        return GcsErasureRestorePurger(
+            client=self.client, bucket=BUCKET, namespace=NAMESPACE
+        )
+
+    def version(self, record=None):
+        record = record or pending()
+        self.store.put(record)
+        readback = self.store.read_versioned(record.item_id)
+        self.assertEqual(readback.record, record)
+        self.assertEqual(self.store.read(record.item_id), record)
+        self.assertEqual(
+            readback.version,
+            RestoreObjectVersion(BUCKET, NAMESPACE, ITEM, "7", len(self.objects.blob)),
+        )
+        return readback.version
+
+    @staticmethod
+    def http_error(status):
+        return HttpError(
+            httplib2.Response({"status": str(status)}), PRIVATE_MARKER.encode()
+        )
+
+    def assert_outcome(self, result, stage, classification, dispatched):
+        self.assertEqual(
+            vars(result),
+            {
+                "stage": stage,
+                "classification": classification,
+                "delete_dispatched": dispatched,
+                "next_action": "read_only_version_review",
+            },
+        )
+        for secret in (PRIVATE_MARKER, BUCKET, NAMESPACE, ITEM):
+            self.assertNotIn(secret, repr(result))
+
+    def test_separate_authorities_constructor_no_io_and_versioned_dto_compatibility(
+        self,
+    ):
+        self.client.objects.assert_not_called()
+        self.assertFalse(hasattr(self.store, "purge"))
+        self.assertFalse(hasattr(self.store, "delete"))
+        self.assertFalse(hasattr(self.purger, "put"))
+        for record in (pending(), person()):
+            version = self.version(record)
+            self.assertNotIn(ITEM, repr(version))
+            readback = self.store.read_versioned(ITEM)
+            self.assertNotIn(ITEM, repr(readback))
+            with self.assertRaises(AttributeError):
+                version.generation = "8"
+
+    def test_active_version_delete_has_precondition_but_no_historical_selector(self):
+        version = self.version()
+        result = self.purger.purge(version)
+        self.assert_outcome(result, "delete", "active_version_removed", True)
+        self.assertEqual(
+            self.objects.deletes,
+            [{"bucket": BUCKET, "object": NAME, "ifGenerationMatch": "7"}],
+        )
+        self.assertEqual(self.objects.delete_request.retries, [0])
+        self.assertEqual(
+            self.objects.gets[-1],
+            {"bucket": BUCKET, "object": NAME, "fields": "bucket,name,generation,size"},
+        )
+        before = len(self.objects.gets)
+        self.assertEqual(self.purger.purge(version), result)
+        self.assertEqual(len(self.objects.deletes), 1)
+        self.assertEqual(len(self.objects.gets), before)
+
+    def test_invalid_version_or_wrong_namespace_never_calls_sdk(self):
+        version = self.version()
+        invalid = [
+            None,
+            object(),
+            vars(version),
+            replace(version, bucket="other-bucket"),
+            replace(version, namespace=JOB),
+            replace(version, item_id=ITEM + "\n"),
+            replace(version, item_id="../other"),
+            replace(version, generation="07"),
+            replace(version, generation="0"),
+            replace(version, generation=7),
+            replace(version, generation=str(2**64)),
+            replace(version, generation="7\n"),
+            replace(version, size=True),
+            replace(version, size=0),
+            replace(version, size=4097),
+        ]
+        self.client.reset_mock()
+        for bad in invalid:
+            with self.subTest(type=type(bad).__name__):
+                for action in (self.purger.purge, self.purger.read_version_presence):
+                    with self.assertRaises(RestoreStoreRejected):
+                        action(bad)
+        self.client.objects.assert_not_called()
+        self.assertEqual(self.objects.deletes, [])
+
+    def test_stale_or_invalid_preflight_never_deletes(self):
+        version = self.version()
+        for field, value, expected in (
+            ("generation", "8", "version_conflict"),
+            ("size", str(version.size + 1), "version_conflict"),
+            ("name", "other-object", "metadata_rejected"),
+            ("generation", "0", "metadata_rejected"),
+        ):
+            with self.subTest(field=field, value=value):
+                original = self.objects.metadata.copy()
+                self.objects.metadata[field] = value
+                self.assert_outcome(
+                    self.new_purger().purge(version), "preflight", expected, False
+                )
+                self.objects.metadata = original
+        self.assertEqual(self.objects.deletes, [])
+
+    def test_preflight_404_412_and_unknown_are_not_absence_or_retry_authority(self):
+        version = self.version()
+        for error, expected in (
+            (self.http_error(404), "current_not_found"),
+            (self.http_error(412), "version_conflict"),
+            (TimeoutError(PRIVATE_MARKER), "metadata_unavailable"),
+        ):
+            self.objects.metadata_error = error
+            self.assert_outcome(
+                self.new_purger().purge(version), "preflight", expected, False
+            )
+        self.assertEqual(self.objects.deletes, [])
+
+    def test_delete_404_412_timeout_and_rejection_keep_fixed_one_shot_facts(self):
+        version = self.version()
+        for error, expected in (
+            (self.http_error(404), "current_not_found"),
+            (self.http_error(412), "version_conflict"),
+            (self.http_error(403), "delete_rejected"),
+            (self.http_error(500), "delete_outcome_unknown"),
+            (TimeoutError(PRIVATE_MARKER), "delete_outcome_unknown"),
+        ):
+            with self.subTest(expected=expected):
+                purger = self.new_purger()
+                self.objects.delete_error = error
+                result = purger.purge(version)
+                self.assert_outcome(result, "delete", expected, True)
+                count = len(self.objects.deletes)
+                self.assertEqual(purger.purge(version), result)
+                # Changing an untrusted size cannot bypass the per-version fence.
+                self.assertEqual(
+                    purger.purge(replace(version, size=version.size + 1)), result
+                )
+                self.assertEqual(len(self.objects.deletes), count)
+                self.assertEqual(self.objects.delete_request.retries, [0])
+
+    def test_lost_delete_ack_presence_observation_does_not_rewrite_or_resend(self):
+        version = self.version()
+        self.objects.after_delete = lambda: setattr(
+            self.objects, "metadata_error", self.http_error(404)
+        )
+        self.objects.delete_error = TimeoutError(PRIVATE_MARKER)
+        unknown = self.purger.purge(version)
+        self.assert_outcome(unknown, "delete", "delete_outcome_unknown", True)
+        presence = self.purger.read_version_presence(version)
+        self.assert_outcome(presence, "presence", "version_not_found", False)
+        self.assertEqual(self.objects.gets[-1]["generation"], "7")
+        self.assertEqual(self.purger.purge(version), unknown)
+        self.assertEqual(len(self.objects.deletes), 1)
+
+    def test_presence_is_exact_readonly_and_does_not_claim_all_copies_absent(self):
+        version = self.version()
+        self.assert_outcome(
+            self.purger.read_version_presence(version),
+            "presence",
+            "version_present",
+            False,
+        )
+        self.assertEqual(
+            self.objects.gets[-1],
+            {
+                "bucket": BUCKET,
+                "object": NAME,
+                "generation": "7",
+                "fields": "bucket,name,generation,size",
+            },
+        )
+        self.objects.metadata["generation"] = "8"
+        self.assert_outcome(
+            self.purger.read_version_presence(version),
+            "presence",
+            "version_conflict",
+            False,
+        )
+        for error, expected in (
+            (self.http_error(404), "version_not_found"),
+            (self.http_error(412), "version_conflict"),
+            (RuntimeError(PRIVATE_MARKER), "metadata_unavailable"),
+        ):
+            self.objects.metadata_error = error
+            self.assert_outcome(
+                self.purger.read_version_presence(version), "presence", expected, False
+            )
+        self.assertEqual(self.objects.deletes, [])
+
+    def test_malformed_delete_ack_is_unknown_and_reentrant_call_cannot_dispatch(self):
+        version = self.version()
+        nested = []
+        self.objects.after_delete = lambda: nested.append(self.purger.purge(version))
+        self.objects.delete_reply = {"private": PRIVATE_MARKER}
+        result = self.purger.purge(version)
+        self.assert_outcome(result, "delete", "delete_outcome_unknown", True)
+        self.assertEqual(nested, [result])
+        self.assertEqual(len(self.objects.deletes), 1)
+
+    def test_actual_discovery_delete_wire_and_generation_pinned_presence_no_network(
+        self,
+    ):
+        version = self.version()
+        calls = []
+        metadata = self.objects.metadata.copy()
+
+        class Transport:
+            def request(inner, uri, method="GET", body=None, headers=None, **kwargs):
+                parts = urlsplit(uri)
+                query = parse_qs(parts.query)
+                calls.append((method, query))
+                self.assertEqual(unquote(parts.path).split("/o/", 1)[1], NAME)
+                if method == "DELETE":
+                    self.assertEqual(query, {"ifGenerationMatch": ["7"]})
+                    self.assertIsNone(body)
+                    return httplib2.Response({"status": "204"}), b""
+                self.assertEqual(method, "GET")
+                return (
+                    httplib2.Response({"status": "200"}),
+                    json.dumps(metadata).encode(),
+                )
+
+        client = build(
+            "storage",
+            "v1",
+            http=Transport(),
+            static_discovery=True,
+            cache_discovery=False,
+        )
+        purger = GcsErasureRestorePurger(
+            client=client, bucket=BUCKET, namespace=NAMESPACE
+        )
+        self.assert_outcome(
+            purger.purge(version), "delete", "active_version_removed", True
+        )
+        self.assert_outcome(
+            purger.read_version_presence(version), "presence", "version_present", False
+        )
+        self.assertEqual([method for method, _ in calls], ["GET", "DELETE", "GET"])
+        self.assertNotIn("generation", calls[0][1])
+        self.assertEqual(calls[2][1]["generation"], ["7"])
 
 
 if __name__ == "__main__":

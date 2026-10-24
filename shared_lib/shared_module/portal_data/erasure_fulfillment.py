@@ -35,6 +35,7 @@ from .erasure_provider_execution import (
     _time,
     _uuid,
 )
+from .erasure_retention import retention_failure_reason
 from .runtime import acquire_admin_event_locks
 
 LOCAL_TABLES = (
@@ -158,6 +159,7 @@ def _connection(session):
         ("0019_erasure_admin_recovery",),
         ("0020_erasure_intake",),
         ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
     ):
         raise _Rejected("schema_not_ready")
     for table in (
@@ -261,7 +263,11 @@ def _inventory(connection, identity_id):
     )
     if tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
-    ) in {("0020_erasure_intake",), ("0021_erasure_continuity",)}:
+    ) in {
+        ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
+    }:
         expected.add(
             (
                 "ntubtob",
@@ -547,6 +553,8 @@ class PendingIdentityFulfillment:
     def _failure(error, stage):
         if isinstance(error, _Rejected):
             return FulfillmentResult("not_applied", stage, str(error))
+        if stage != "commit" and (reason := retention_failure_reason(error)):
+            return FulfillmentResult("not_applied", stage, reason)
         original = getattr(error, "orig", None)
         message = getattr(getattr(original, "diag", None), "message_primary", None)
         for check in (
@@ -610,6 +618,7 @@ class PendingIdentityFulfillment:
                         ("0019_erasure_admin_recovery",),
                         ("0020_erasure_intake",),
                         ("0021_erasure_continuity",),
+                        ("0022_erasure_retention",),
                     ):
                         raise _Rejected("schema_not_ready")
                     self._context_on(connection, job_id, snapshot)

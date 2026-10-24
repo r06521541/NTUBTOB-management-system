@@ -80,6 +80,7 @@ class ErasurePlanStore:
             ("0019_erasure_admin_recovery",),
             ("0020_erasure_intake",),
             ("0021_erasure_continuity",),
+            ("0022_erasure_retention",),
         ):
             _reject("schema_not_ready")
         for name in (

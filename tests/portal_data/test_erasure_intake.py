@@ -681,6 +681,13 @@ class IntakePostgresTests(unittest.TestCase):
                 release.set()
             cancellation.result(timeout=7)
             materialization.result(timeout=7)
+        # Both workers and the observer must return their connections before the
+        # owned fixture can wait for server-side close acknowledgement and DROP.
+        self.assertEqual(
+            self.engine.pool.checkedout(),
+            0,
+            "race connections must be returned before fixture cleanup",
+        )
         self.assertEqual(self.status()["status"], "cancelled")
         self.assertEqual(
             self.scalar("SELECT count(*) FROM ntubtob.account_erasure_jobs"), 0

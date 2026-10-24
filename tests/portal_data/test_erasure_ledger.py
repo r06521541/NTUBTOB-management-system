@@ -170,7 +170,7 @@ class ErasureMetadataPostgresTests(unittest.TestCase):
             with engine.begin() as connection:
                 config = Config(str(ROOT / "alembic.ini"))
                 config.attributes["connection"] = connection
-                command.upgrade(config, "0021_erasure_continuity")
+                command.upgrade(config, "0022_erasure_retention")
         finally:
             engine.dispose()
         environment = os.environ.copy()

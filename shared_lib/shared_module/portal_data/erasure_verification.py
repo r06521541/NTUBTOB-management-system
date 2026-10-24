@@ -144,6 +144,7 @@ class ErasureVerificationCoordinator:
                 ("0019_erasure_admin_recovery",),
                 ("0020_erasure_intake",),
                 ("0021_erasure_continuity",),
+                ("0022_erasure_retention",),
             ):
                 raise ErasureVerificationUnavailable("schema_not_ready")
             for table in (

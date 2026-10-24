@@ -306,6 +306,7 @@ def _lock(connection):
         ("0019_erasure_admin_recovery",),
         ("0020_erasure_intake",),
         ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
     ):
         raise _Rejected("schema_not_ready")
     connection.execute(
@@ -347,7 +348,11 @@ def _lock(connection):
     }
     intake_schema = tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
-    ) in {("0020_erasure_intake",), ("0021_erasure_continuity",)}
+    ) in {
+        ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
+        ("0022_erasure_retention",),
+    }
     for table in PortalDataBase.metadata.tables.values():
         if table.name == "account_erasure_intakes" and not intake_schema:
             continue
